@@ -919,6 +919,12 @@ class TrackPlayer extends EventEmitter<{
             return;
         }
 
+        trace("底层播放失败，进入换源流程", {
+            target: musicItem,
+            failedUrl: currentTrack?.url,
+            errorCode: currentTrack?.$?.code,
+        });
+
         if (!this.sourceFallbackResolver) {
             this.sourceFallbackResolver = new MediaSourceFallbackResolver(
                 musicItem,
@@ -945,8 +951,10 @@ class TrackPlayer extends EventEmitter<{
             return;
         }
 
+        trace("播放失败换源失败，执行原有失败策略", this.sourceFallbackResolver?.getAttemptSummary());
         await this.handlePlayFail();
     }
+
     private async handlePlayFail() {
         // 如果自动跳转下一曲, 500s后自动跳转
         if (!this.configService.getConfig("basic.autoStopWhenError")) {

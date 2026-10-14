@@ -5,6 +5,7 @@ import { isPluginAvailableForService } from "./pluginManager/health";
 import type { IPluginManager } from "@/types/core/pluginManager";
 import type { IAppConfig } from "@/types/core/config";
 import type { Plugin } from "./pluginManager/plugin";
+import { trace } from "@/utils/log";
 
 /** R1/R2 内置保守值：最多 5 个可用候选插件，总预算 15 秒。 */
 export const PLAY_SOURCE_FALLBACK_MAX_CANDIDATES = 5;
@@ -126,6 +127,8 @@ export class MediaSourceFallbackResolver {
     private failedSourceUrls = new Set<string>();
     private deadline: number | null = null;
 
+    private candidatePluginNames: string[] = [];
+
     constructor(
         musicItem: IMusic.IMusicItemBase,
         pluginManager: IPluginManager,
@@ -174,6 +177,10 @@ export class MediaSourceFallbackResolver {
 
         if (!this.candidatePlugins) {
             this.candidatePlugins = this.getOrderedCandidatePlugins();
+            trace("换源候选列表", {
+                target: this.musicItem,
+                candidates: this.candidatePluginNames,
+            });
         }
 
         while (
@@ -187,6 +194,12 @@ export class MediaSourceFallbackResolver {
                 continue;
             }
             this.attemptedPluginNames.add(plugin.name);
+            trace("尝试换源候选", {
+                target: this.musicItem,
+                plugin: plugin.name,
+                attempted: [...this.attemptedPluginNames],
+                remainingTimeMs: this.deadline ? Math.max(0, this.deadline - Date.now()) : 0,
+            });
 
             try {
                 const results = await plugin.methods.search(
@@ -202,7 +215,18 @@ export class MediaSourceFallbackResolver {
                     .slice(0, 10)
                     .filter(item => this.isStrictMatch(item));
 
+                trace("换源候选搜索完成", {
+                    plugin: plugin.name,
+                    resultCount: results?.data?.length ?? 0,
+                    matchedCount: matchedItems.length,
+                });
+
                 for (const matchedItem of matchedItems) {
+                    trace("换源候选严格匹配成功", {
+                        plugin: plugin.name,
+                        target: this.musicItem,
+                        candidate: matchedItem,
+                    });
                     const source = await this.getSourceFromPlugin(plugin, matchedItem);
                     if (!source?.url || this.failedSourceUrls.has(source.url)) {
                         continue;
@@ -222,9 +246,14 @@ export class MediaSourceFallbackResolver {
                         resolvedAt: Date.now(),
                     };
                     setMediaSourceFallbackCache(resolved);
+                    trace("换源候选取源成功", resolved);
                     return resolved;
                 }
-            } catch {
+            } catch (error) {
+                trace("换源候选搜索失败", {
+                    plugin: plugin.name,
+                    error,
+                });
                 // 单个插件失败不阻断后续候选；插件健康统计由 PluginMethodsWrapper 记录。
             }
         }
@@ -271,7 +300,17 @@ export class MediaSourceFallbackResolver {
             }
             uniquePlugins.set(plugin.name, plugin);
         }
+        this.candidatePluginNames = [...uniquePlugins.keys()];
         return [...uniquePlugins.values()];
+    }
+
+    getAttemptSummary() {
+        return {
+            attempted: [...this.attemptedPluginNames],
+            failedUrls: [...this.failedSourceUrls],
+            expired: this.isExpired(),
+            remainingTimeMs: this.deadline ? Math.max(0, this.deadline - Date.now()) : 0,
+        };
     }
 
     private isStrictMatch(item?: IMusic.IMusicItemBase | null): boolean {
