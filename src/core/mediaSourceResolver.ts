@@ -10,7 +10,7 @@ import { trace } from "@/utils/log";
 /** R1/R2 内置保守值：最多 5 个可用候选插件，总预算 15 秒。 */
 export const PLAY_SOURCE_FALLBACK_MAX_CANDIDATES = 5;
 export const PLAY_SOURCE_FALLBACK_TIMEOUT_MS = 15_000;
-const PLAY_SOURCE_FALLBACK_DURATION_TOLERANCE_MS = 3_000;
+const PLAY_SOURCE_FALLBACK_DURATION_TOLERANCE_SECONDS = 3;
 
 export interface IResolvedFallbackSource {
     source: IPlugin.IMediaSourceResult;
@@ -108,7 +108,7 @@ export function isDurationMatch(
     if (!Number.isFinite(source) || !Number.isFinite(target) || source <= 0 || target <= 0) {
         return false;
     }
-    return Math.abs(source - target) <= PLAY_SOURCE_FALLBACK_DURATION_TOLERANCE_MS;
+    return Math.abs(source - target) <= PLAY_SOURCE_FALLBACK_DURATION_TOLERANCE_SECONDS;
 }
 
 /**
@@ -229,6 +229,7 @@ export class MediaSourceFallbackResolver {
                 for (const matchedItem of matchedItems) {
                     trace("换源候选匹配成功", {
                         strict: this.configService.getConfig("basic.playSourceFallbackStrictMatch") ?? true,
+                        durationDiffSeconds: Math.abs(Number(matchedItem.duration) - Number(this.musicItem.duration)),
                         plugin: plugin.name,
                         target: this.musicItem,
                         candidate: matchedItem,
