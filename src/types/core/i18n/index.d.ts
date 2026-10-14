@@ -324,6 +324,7 @@ export interface ILanguageData {
     "basicSettings.notInterrupt": string; // 允许与其他应用同时播放
     "basicSettings.autoPlayWhenAppStart": string; // 软件启动时自动播放歌曲
     "basicSettings.tryChangeSourceWhenPlayFail": string; // 播放失败时尝试更换音源
+    "basicSettings.playSourceFallbackStrictMatch": string; // 换源时严格匹配歌曲
     "basicSettings.autoStopWhenError": string; // 播放失败时自动暂停
     "basicSettings.tempRemoteDuck": string; // 播放被暂时打断时
     "basicSettings.tempRemoteDuck.pause": string; // 暂停播放
@@ -364,6 +365,7 @@ export interface ILanguageData {
     "basicSettings.cache": string; // 缓存
     "basicSettings.cache.musicCacheLimit": string; // 音乐缓存上限
     "basicSettings.cache.clearMusicCache": string; // 清除音乐缓存
+    "basicSettings.cache.clearSourceFallbackCache": string; // 清除换源结果缓存
     "basicSettings.cache.clearLyricCache": string; // 清除歌词缓存
     "basicSettings.cache.clearImageCache": string; // 清除图片缓存
     
@@ -378,6 +380,8 @@ export interface ILanguageData {
     "dialog.setCacheTitle": string; // 设置缓存
     "dialog.setCachePlaceholder": string; // 输入缓存占用上限提示
     "dialog.clearMusicCacheTitle": string; // 清除音乐缓存
+    "dialog.clearSourceFallbackCacheTitle": string; // 清除换源结果缓存
+    "dialog.clearSourceFallbackCacheContent": string; // 清除换源结果缓存确认内容
     "dialog.clearMusicCacheContent": string; // 清除音乐缓存确认内容
     "dialog.clearLyricCacheTitle": string; // 清除歌词缓存
     "dialog.clearLyricCacheContent": string; // 清除歌词缓存确认内容
@@ -395,6 +399,7 @@ export interface ILanguageData {
     // 提示消息相关 - 缓存和日志
     "toast.cacheSetSuccess": string; // 设置成功
     "toast.musicCacheCleared": string; // 已清除音乐缓存
+    "toast.sourceFallbackCacheCleared": string; // 已清除换源结果缓存
     "toast.lyricCacheCleared": string; // 已清除歌词缓存
     "toast.imageCacheCleared": string; // 已清除图片缓存
     "toast.logCleared": string; // 日志已清空

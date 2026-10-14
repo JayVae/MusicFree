@@ -35,7 +35,7 @@ import { TrackPlayerEvents } from "@/core.defination/trackPlayer";
 import type { IAppConfig } from "@/types/core/config";
 import type { IMusicHistory } from "@/types/core/musicHistory";
 import { ITrackPlayer } from "@/types/core/trackPlayer/index";
-import minDistance from "@/utils/minDistance";
+import { MediaSourceFallbackResolver } from "../mediaSourceResolver";
 import { IPluginManager } from "@/types/core/pluginManager";
 import { ImgAsset } from "@/constants/assetsConst";
 import { resolveImportedAssetOrPath } from "@/utils/fileUtils";
@@ -67,6 +67,9 @@ class TrackPlayer extends EventEmitter<{
     private serviceInited = false;
     // 播放队列索引map
     private playListIndexMap = createMediaIndexMap([] as IMusic.IMusicItem[]);
+
+    // 当前歌曲的集中换源会话，覆盖取源失败和底层播放失败
+    private sourceFallbackResolver: MediaSourceFallbackResolver | null = null;
 
 
     private static maxMusicQueueLength = 10000;
@@ -236,7 +239,7 @@ class TrackPlayer extends EventEmitter<{
                             code: e.code,
                         });
 
-                        this.handlePlayFail();
+                        await this.handlePlaybackError(currentTrack);
                     }
                 },
             );
@@ -479,6 +482,17 @@ class TrackPlayer extends EventEmitter<{
                 this.configService.getConfig("basic.defaultPlayQuality") ?? "standard",
                 this.configService.getConfig("basic.playQualityOrder") ?? "asc",
             );
+            const shouldFallback = this.configService.getConfig(
+                "basic.tryChangeSourceWhenPlayFail",
+            ) ?? true;
+            this.sourceFallbackResolver = shouldFallback
+                ? new MediaSourceFallbackResolver(
+                    musicItem,
+                    this.pluginManagerService,
+                    this.configService,
+                )
+                : null;
+
             // 5.3 插件返回音源
             let source: IPlugin.IMediaSourceResult | null = null;
             for (let quality of qualityOrder) {
@@ -489,10 +503,11 @@ class TrackPlayer extends EventEmitter<{
                             quality,
                         )) ?? null;
                     // 5.3.1 获取到真实源
-                    if (source) {
+                    if (source?.url) {
                         this.setQuality(quality);
                         break;
                     }
+                    source = null;
                 } else {
                     // 5.3.2 已经切换到其他歌曲了，
                     return;
@@ -503,7 +518,7 @@ class TrackPlayer extends EventEmitter<{
                 return;
             }
             if (!source) {
-                // 如果有source
+                // 如果原始歌曲带有内嵌音源，优先使用
                 if (musicItem.source) {
                     for (let quality of qualityOrder) {
                         if (musicItem.source[quality]?.url) {
@@ -514,44 +529,26 @@ class TrackPlayer extends EventEmitter<{
                         }
                     }
                 }
-                // 5.4 没有返回源
+
+                // 5.4 原始插件没有有效源，进入集中换源解析器
                 if (!source && !musicItem.url) {
-                    // 插件失效的情况
-                    if (this.configService.getConfig("basic.tryChangeSourceWhenPlayFail")) {
-                        // 重试
-                        const similarMusic = await this.getSimilarMusic(
-                            musicItem,
-                            "music",
+                    if (shouldFallback) {
+                        const fallbackSource = await this.sourceFallbackResolver?.resolveNext(
                             () => !this.isCurrentMusic(musicItem),
                         );
-
-                        if (similarMusic) {
-                            const similarMusicPlugin =
-                                this.pluginManagerService.getByMedia(similarMusic);
-
-                            for (let quality of qualityOrder) {
-                                if (this.isCurrentMusic(musicItem)) {
-                                    source =
-                                        (await similarMusicPlugin?.methods?.getMediaSource(
-                                            similarMusic,
-                                            quality,
-                                        )) ?? null;
-                                    // 5.4.1 获取到真实源
-                                    if (source) {
-                                        this.setQuality(quality);
-                                        break;
-                                    }
-                                } else {
-                                    // 5.4.2 已经切换到其他歌曲了，
-                                    return;
-                                }
-                            }
+                        if (!this.isCurrentMusic(musicItem)) {
+                            return;
                         }
-
-                        if (!source) {
-                            throw new Error(PlayFailReason.INVALID_SOURCE);
+                        if (fallbackSource?.source.url) {
+                            source = fallbackSource.source;
+                            this.setQuality(
+                                fallbackSource.source.quality ?? qualityOrder[0],
+                            );
+                            trace("换源成功", fallbackSource);
                         }
-                    } else {
+                    }
+
+                    if (!source) {
                         throw new Error(PlayFailReason.INVALID_SOURCE);
                     }
                 } else {
@@ -561,7 +558,6 @@ class TrackPlayer extends EventEmitter<{
                     this.setQuality("standard");
                 }
             }
-
             // 6. 特殊类型源
             if (getUrlExt(source.url) === ".m3u8") {
                 // @ts-ignore
@@ -903,6 +899,54 @@ class TrackPlayer extends EventEmitter<{
     }
 
 
+    /**
+     * R1/R2：底层播放失败后继续尝试集中换源解析器的下一个候选。
+     */
+    private async handlePlaybackError(currentTrack?: Track | null) {
+        const musicItem = this.currentMusic;
+        const fallbackEnabled = this.configService.getConfig(
+            "basic.tryChangeSourceWhenPlayFail",
+        ) ?? true;
+
+        if (
+            !fallbackEnabled ||
+            !musicItem ||
+            !isSameMediaItem(currentTrack ? (currentTrack as unknown as IMusic.IMusicItem) : null, musicItem) ||
+            currentTrack?.url === TrackPlayer.fakeAudioUrl ||
+            currentTrack?.url === TrackPlayer.proposedAudioUrl
+        ) {
+            await this.handlePlayFail();
+            return;
+        }
+
+        if (!this.sourceFallbackResolver) {
+            this.sourceFallbackResolver = new MediaSourceFallbackResolver(
+                musicItem,
+                this.pluginManagerService,
+                this.configService,
+            );
+        }
+
+        this.sourceFallbackResolver.reportFailedSource(currentTrack?.url);
+        const fallbackSource = await this.sourceFallbackResolver.resolveNext(
+            () => !this.isCurrentMusic(musicItem),
+        );
+
+        if (
+            fallbackSource?.source.url &&
+            this.isCurrentMusic(musicItem)
+        ) {
+            trace("播放失败换源成功", fallbackSource);
+            const track = this.mergeTrackSource(
+                musicItem,
+                fallbackSource.source,
+            ) as unknown as Track;
+            await this.setTrackSource(track);
+            return;
+        }
+
+        await this.handlePlayFail();
+    }
     private async handlePlayFail() {
         // 如果自动跳转下一曲, 500s后自动跳转
         if (!this.configService.getConfig("basic.autoStopWhenError")) {
@@ -910,72 +954,6 @@ class TrackPlayer extends EventEmitter<{
             await this.skipToNext();
         }
     }
-
-    /**
- *
- * @param musicItem 音乐类型
- * @param type 媒体类型
- * @param abortFunction 如果函数为true，则中断
- * @returns
- */
-    private async getSimilarMusic<T extends ICommon.SupportMediaType>(
-        musicItem: IMusic.IMusicItem,
-        type: T = "music" as T,
-        abortFunction?: () => boolean,
-    ): Promise<ICommon.SupportMediaItemBase[T] | null> {
-        const keyword = musicItem.alias || musicItem.title;
-        const plugins = this.pluginManagerService.getSearchablePlugins(type);
-
-        let distance = Infinity;
-        let minDistanceMusicItem;
-        let targetPlugin;
-
-        const startTime = Date.now();
-
-        for (let plugin of plugins) {
-            // 超时时间：8s
-            if (abortFunction?.() || Date.now() - startTime > 8000) {
-                break;
-            }
-            if (plugin.name === musicItem.platform) {
-                continue;
-            }
-            const results = await plugin.methods
-                .search(keyword, 1, type)
-                .catch(() => null);
-
-            // 取前两个
-            const firstTwo = results?.data?.slice(0, 2) || [];
-
-            for (let item of firstTwo) {
-                if (item.title === keyword && item.artist === musicItem.artist) {
-                    distance = 0;
-                    minDistanceMusicItem = item;
-                    targetPlugin = plugin;
-                    break;
-                } else {
-                    const dist =
-                        minDistance(keyword, musicItem.title) +
-                        minDistance(item.artist, musicItem.artist);
-                    if (dist < distance) {
-                        distance = dist;
-                        minDistanceMusicItem = item;
-                        targetPlugin = plugin;
-                    }
-                }
-            }
-
-            if (distance === 0) {
-                break;
-            }
-        }
-        if (minDistanceMusicItem && targetPlugin) {
-            return minDistanceMusicItem as ICommon.SupportMediaItemBase[T];
-        }
-
-        return null;
-    }
-
 
     private patchMediaArtwork(track: Track) {
         // Bug: React native track player 在设置音频时，artwork不能为null，并且部分情况下artwork不能为ImageSource类型

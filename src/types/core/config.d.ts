@@ -31,6 +31,7 @@ export interface IAppConfigProperties {
     "basic.showExitOnNotification": boolean;
     "basic.musicOrderInLocalSheet": SortType;
     "basic.tryChangeSourceWhenPlayFail": boolean;
+    "basic.playSourceFallbackStrictMatch": boolean;
 
     // Lyric
     "lyric.showStatusBarLyric": boolean;

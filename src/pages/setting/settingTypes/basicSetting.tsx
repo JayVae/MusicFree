@@ -8,6 +8,7 @@ import { showPanel } from "@/components/panels/usePanel";
 import { SortType } from "@/constants/commonConst.ts";
 import pathConst from "@/constants/pathConst";
 import Config, { useAppConfig } from "@/core/appConfig";
+import { clearMediaSourceFallbackCache } from "@/core/mediaSourceResolver";
 import { useI18N } from "@/core/i18n";
 import { ROUTE_PATH, useNavigate } from "@/core/router";
 import useColors from "@/hooks/useColors";
@@ -130,6 +131,7 @@ export default function BasicSetting() {
     const showExitOnNotification = useAppConfig("basic.showExitOnNotification");
     const musicOrderInLocalSheet = useAppConfig("basic.musicOrderInLocalSheet");
     const tryChangeSourceWhenPlayFail = useAppConfig("basic.tryChangeSourceWhenPlayFail");
+    const playSourceFallbackStrictMatch = useAppConfig("basic.playSourceFallbackStrictMatch");
 
     const { t } = useI18N();
 
@@ -280,7 +282,12 @@ export default function BasicSetting() {
                 createSwitch(
                     t("basicSettings.tryChangeSourceWhenPlayFail"),
                     "basic.tryChangeSourceWhenPlayFail",
-                    tryChangeSourceWhenPlayFail ?? false,
+                    tryChangeSourceWhenPlayFail ?? true,
+                ),
+                createSwitch(
+                    t("basicSettings.playSourceFallbackStrictMatch"),
+                    "basic.playSourceFallbackStrictMatch",
+                    playSourceFallbackStrictMatch ?? true,
                 ),
                 createSwitch(
                     t("basicSettings.autoStopWhenError"),
@@ -456,6 +463,20 @@ export default function BasicSetting() {
                     },
                 },
 
+                {
+                    title: t("basicSettings.cache.clearSourceFallbackCache"),
+                    right: undefined,
+                    onPress() {
+                        showDialog("SimpleDialog", {
+                            title: t("dialog.clearSourceFallbackCacheTitle"),
+                            content: t("dialog.clearSourceFallbackCacheContent"),
+                            onOk() {
+                                clearMediaSourceFallbackCache();
+                                Toast.success(t("toast.sourceFallbackCacheCleared"));
+                            },
+                        });
+                    },
+                },
                 {
                     title: t("basicSettings.cache.clearMusicCache"),
                     right: (
