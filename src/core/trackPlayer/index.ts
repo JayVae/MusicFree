@@ -933,7 +933,13 @@ class TrackPlayer extends EventEmitter<{
             );
         }
 
-        this.sourceFallbackResolver.reportFailedSource(currentTrack?.url);
+        if (!this.sourceFallbackResolver.reportFailedSource(currentTrack?.url)) {
+            trace("忽略重复播放失败事件", {
+                target: musicItem,
+                failedUrl: currentTrack?.url,
+            });
+            return;
+        }
         const fallbackSource = await this.sourceFallbackResolver.resolveNext(
             () => !this.isCurrentMusic(musicItem),
         );

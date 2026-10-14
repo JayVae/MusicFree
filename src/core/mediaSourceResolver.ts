@@ -143,18 +143,23 @@ export class MediaSourceFallbackResolver {
         );
     }
 
-    /** 底层播放失败或源失效时记录 URL；首次调用后才开始消耗 15 秒预算。 */
-    reportFailedSource(url?: string | null) {
+    /**
+     * 底层播放失败或源失效时记录 URL。
+     * 返回 false 表示同一 URL 已处理过，避免播放器重复抛出旧错误时浪费候选。
+     */
+    reportFailedSource(url?: string | null): boolean {
         if (!this.deadline) {
             this.deadline = Date.now() + PLAY_SOURCE_FALLBACK_TIMEOUT_MS;
         }
-        if (url) {
-            this.failedSourceUrls.add(url);
+        if (!url || this.failedSourceUrls.has(url)) {
+            return false;
         }
+        this.failedSourceUrls.add(url);
         const cache = getMediaSourceFallbackCache(this.musicItem);
-        if (cache?.source.url && url && cache.source.url === url) {
+        if (cache?.source.url === url) {
             removeMediaSourceFallbackCache(this.musicItem);
         }
+        return true;
     }
 
     /**
@@ -222,13 +227,19 @@ export class MediaSourceFallbackResolver {
                 });
 
                 for (const matchedItem of matchedItems) {
-                    trace("换源候选严格匹配成功", {
+                    trace("换源候选匹配成功", {
+                        strict: this.configService.getConfig("basic.playSourceFallbackStrictMatch") ?? true,
                         plugin: plugin.name,
                         target: this.musicItem,
                         candidate: matchedItem,
                     });
                     const source = await this.getSourceFromPlugin(plugin, matchedItem);
                     if (!source?.url || this.failedSourceUrls.has(source.url)) {
+                        trace("换源候选取源失败", {
+                            plugin: plugin.name,
+                            candidate: matchedItem,
+                            duplicateSource: !!source?.url && this.failedSourceUrls.has(source.url),
+                        });
                         continue;
                     }
 
@@ -322,7 +333,7 @@ export class MediaSourceFallbackResolver {
         }
 
         // 总开关默认严格；关闭后仍不做编辑距离兜底，仅放宽文本要求。
-        if (!this.configService.getConfig("basic.playSourceFallbackStrictMatch")) {
+        if (!(this.configService.getConfig("basic.playSourceFallbackStrictMatch") ?? true)) {
             return true;
         }
 
