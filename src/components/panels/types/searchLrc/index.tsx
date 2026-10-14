@@ -9,7 +9,8 @@ import PanelBase from "../../base/panelBase";
 import { TextInput } from "react-native-gesture-handler";
 import useSearchLrc from "./useSearchLrc";
 import PluginManager from "@/core/pluginManager";
-import { SceneMap, TabBar, TabView } from "react-native-tab-view";
+import { SceneMap, TabView } from "react-native-tab-view";
+import { CompatTabBar } from "@/components/base/compatTabBar";
 import LyricList from "./LyricList";
 import globalStyle from "@/constants/globalStyle";
 import NoPlugin from "@/components/base/noPlugin";
@@ -141,7 +142,7 @@ function LyricResultBodyWrapper() {
                 routes,
             }}
             renderTabBar={_ => (
-                <TabBar
+                <CompatTabBar
                     {..._}
                     scrollEnabled
                     style={{

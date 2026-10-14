@@ -2,7 +2,8 @@ import React, { useCallback, useState } from "react";
 import { StyleSheet, Text } from "react-native";
 import rpx from "@/utils/rpx";
 import PluginManager from "@/core/pluginManager";
-import { TabBar, TabView } from "react-native-tab-view";
+import { TabView } from "react-native-tab-view";
+import { CompatTabBar } from "@/components/base/compatTabBar";
 import { fontWeightConst } from "@/constants/uiConst";
 import BoardPanelWrapper from "./boardPanelWrapper";
 import useColors from "@/hooks/useColors";
@@ -35,7 +36,7 @@ export default function TopListBody() {
                 routes,
             }}
             renderTabBar={props => (
-                <TabBar
+                <CompatTabBar
                     {...props}
                     style={styles.tabBarStyle}
                     tabStyle={styles.tabStyle}

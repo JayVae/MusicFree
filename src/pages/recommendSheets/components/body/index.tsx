@@ -6,7 +6,8 @@ import useColors from "@/hooks/useColors";
 import rpx, { vw } from "@/utils/rpx";
 import React, { useState } from "react";
 import { Text } from "react-native";
-import { TabBar, TabView } from "react-native-tab-view";
+import { TabView } from "react-native-tab-view";
+import { CompatTabBar } from "@/components/base/compatTabBar";
 import SheetBody from "./sheetBody";
 
 export default function Body() {
@@ -21,7 +22,7 @@ export default function Body() {
     const { t } = useI18N();
 
     const renderTabBar = (_: any) => (
-        <TabBar
+        <CompatTabBar
             {..._}
             scrollEnabled
             style={{
