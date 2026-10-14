@@ -183,6 +183,17 @@ export interface ILanguageData {
     "pluginSetting.pluginItem.options.importSheetPlaceHolder": string; // 导入歌单链接
     "pluginSetting.pluginItem.options.importSheetDialogContent": string; // 导入歌单对话框内容
     "pluginSetting.pluginItem.options.userVariables": string; // 用户变量
+    "pluginSetting.pluginItem.health.available": string; // 正常
+    "pluginSetting.pluginItem.health.quarantined": string; // 临时不可用
+    "pluginSetting.pluginItem.health.user-invalid": string; // 已标记失效
+    "pluginSetting.pluginItem.health.archived": string; // 已归档
+    "pluginSetting.pluginItem.health.parseError": string; // 加载失败
+    "pluginSetting.pluginItem.health.failureCount": string; // 连续失败次数
+    "pluginSetting.pluginItem.options.markInvalid": string; // 标记失效
+    "pluginSetting.pluginItem.options.markInvalidContent": string; // 标记失效确认
+    "pluginSetting.pluginItem.options.archivePlugin": string; // 归档插件
+    "pluginSetting.pluginItem.options.archivePluginContent": string; // 归档插件确认
+    "pluginSetting.pluginItem.options.restorePlugin": string; // 恢复插件
     "pluginSetting.pluginItem.versionHint": string; // 版本提示
     "pluginSetting.pluginItem.author": string; // 作者
     "pluginSetting.menu.subscriptionSetting": string; // 订阅设置

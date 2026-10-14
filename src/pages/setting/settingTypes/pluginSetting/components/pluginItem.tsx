@@ -2,6 +2,14 @@ import React, { memo } from "react";
 
 import useColors from "@/hooks/useColors";
 import pluginManager, { Plugin, usePluginEnabled } from "@/core/pluginManager";
+import { PluginState } from "@/core/pluginManager/plugin";
+import {
+    markPluginArchived,
+    markPluginInvalid,
+    PluginHealthStatus,
+    restorePlugin,
+    usePluginHealth,
+} from "@/core/pluginManager/health";
 
 import Toast from "@/utils/toast";
 import Clipboard from "@react-native-clipboard/clipboard";
@@ -9,6 +17,7 @@ import { showDialog } from "@/components/dialogs/useDialog";
 import { showPanel } from "@/components/panels/usePanel";
 import rpx from "@/utils/rpx";
 import { StyleSheet, View } from "react-native";
+import Tag from "@/components/base/tag";
 import ThemeText from "@/components/base/themeText";
 import IconTextButton from "@/components/base/iconTextButton";
 import ThemeSwitch from "@/components/base/switch";
@@ -32,6 +41,8 @@ function _PluginItem(props: IPluginItemProps) {
     const { plugin } = props;
     const colors = useColors();
     const enabled = usePluginEnabled(plugin);
+    const health = usePluginHealth(plugin.name);
+    const healthStatus = health?.status ?? PluginHealthStatus.Available;
     const { t } = useI18N();
     const rerender = useRerender();
 
@@ -197,6 +208,51 @@ function _PluginItem(props: IPluginItemProps) {
             },
             show: Array.isArray(plugin.instance.userVariables),
         },
+        {
+            title: t("pluginSetting.pluginItem.options.markInvalid"),
+            icon: "shield-keyhole-outline",
+            onPress() {
+                showDialog("SimpleDialog", {
+                    title: t("pluginSetting.pluginItem.options.markInvalid"),
+                    content: t("pluginSetting.pluginItem.options.markInvalidContent", {
+                        name: plugin.name,
+                    }),
+                    onOk() {
+                        markPluginInvalid(plugin.name, plugin.hash);
+                        Toast.success(t("toast.settingSuccess"));
+                    },
+                });
+            },
+            show: healthStatus === PluginHealthStatus.Available ||
+                healthStatus === PluginHealthStatus.Quarantined,
+        },
+        {
+            title: t("pluginSetting.pluginItem.options.archivePlugin"),
+            icon: "archive-box-x-mark",
+            onPress() {
+                showDialog("SimpleDialog", {
+                    title: t("pluginSetting.pluginItem.options.archivePlugin"),
+                    content: t("pluginSetting.pluginItem.options.archivePluginContent", {
+                        name: plugin.name,
+                    }),
+                    onOk() {
+                        markPluginArchived(plugin.name, plugin.hash);
+                        Toast.success(t("toast.settingSuccess"));
+                    },
+                });
+            },
+            show: healthStatus === PluginHealthStatus.Available ||
+                healthStatus === PluginHealthStatus.Quarantined,
+        },
+        {
+            title: t("pluginSetting.pluginItem.options.restorePlugin"),
+            icon: "arrow-path",
+            onPress() {
+                restorePlugin(plugin.name, plugin.hash);
+                Toast.success(t("toast.settingSuccess"));
+            },
+            show: healthStatus !== PluginHealthStatus.Available,
+        },
     ];
 
     return (
@@ -214,6 +270,16 @@ function _PluginItem(props: IPluginItemProps) {
                         fontSize="title">
                         {plugin.name}
                     </ThemeText>
+                    {
+                        healthStatus !== PluginHealthStatus.Available ? (
+                            <Tag tagName={t(`pluginSetting.pluginItem.health.${healthStatus}` as any)} />
+                        ) : null
+                    }
+                    {
+                        plugin.state === PluginState.Error ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.health.parseError")} />
+                        ) : null
+                    }
                     {
                         plugin.instance.description?.length ? <IconButton name='question-mark-circle' sizeType='light' onPress={() => {
                             showDialog("MarkdownDialog", {
@@ -256,6 +322,17 @@ function _PluginItem(props: IPluginItemProps) {
                     })}
                 </ThemeText>
             </View> : null}
+            {healthStatus !== PluginHealthStatus.Available ? (
+                <View style={styles.healthDescription}>
+                    <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                        {healthStatus === PluginHealthStatus.Quarantined
+                            ? t("pluginSetting.pluginItem.health.failureCount", {
+                                count: health?.consecutiveFailures ?? 0,
+                            })
+                            : t(`pluginSetting.pluginItem.health.${healthStatus}` as any)}
+                    </ThemeText>
+                </View>
+            ) : null}
             <View style={styles.contents}>
                 {options.map((it, index) =>
                     it.show !== false ? (
@@ -345,6 +422,10 @@ const styles = StyleSheet.create({
         marginHorizontal: rpx(16),
         marginVertical: rpx(24),
         flexDirection: "row",
+    },
+    healthDescription: {
+        marginHorizontal: rpx(16),
+        marginBottom: rpx(24),
     },
     alternativePluginDescription: {
         marginHorizontal: rpx(16),

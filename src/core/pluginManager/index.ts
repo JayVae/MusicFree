@@ -21,6 +21,12 @@ import { ToastAndroid } from "react-native";
 import { copyFile, readDir, readFile, unlink, writeFile } from "react-native-fs";
 import { devLog, errorLog, trace } from "../../utils/log";
 import pluginMeta from "./meta";
+import {
+    clearAllPluginHealth,
+    isPluginAvailableForService,
+    preparePluginHealthForLaunch,
+    removePluginHealth,
+} from "./health";
 import { localFilePlugin, Plugin, PluginState } from "./plugin";
 import i18n from "../i18n";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
@@ -95,6 +101,7 @@ class PluginManager implements IPluginManager, IInjectable {
     async setup() {
         try {
             await pluginMeta.migratePluginMeta();
+            preparePluginHealthForLaunch();
             // 加载插件
             const pluginsFileItems = await readDir(pathConst.pluginPath);
             const allPlugins: Array<Plugin> = [];
@@ -390,6 +397,7 @@ class PluginManager implements IPluginManager, IInjectable {
                 // 防止其他重名
                 if (plugins.every(_ => _.name !== pluginName)) {
                     removeAllMediaExtra(pluginName);
+                    removePluginHealth(pluginName);
                 }
             } catch {}
         }
@@ -410,6 +418,7 @@ class PluginManager implements IPluginManager, IInjectable {
             }),
         );
         this.setPlugins([]);
+        clearAllPluginHealth();
 
         /** 清除空余文件，异步做就可以了 */
         readDir(pathConst.pluginPath)
@@ -505,6 +514,7 @@ class PluginManager implements IPluginManager, IInjectable {
         return this.getPlugins().filter(
             it =>
                 pluginMeta.isPluginEnabled(it.name) &&
+                isPluginAvailableForService(it.name) &&
                 it.supportedMethods.has("search") &&
                 (supportedSearchType && it.instance.supportedSearchType
                     ? it.instance.supportedSearchType.includes(
@@ -538,6 +548,7 @@ class PluginManager implements IPluginManager, IInjectable {
         return this.getPlugins().filter(
             it =>
                 pluginMeta.isPluginEnabled(it.name) &&
+                isPluginAvailableForService(it.name) &&
                 it.supportedMethods.has(ability),
         );
     }

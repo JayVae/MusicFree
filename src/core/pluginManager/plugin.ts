@@ -30,6 +30,10 @@ import { devLog, errorLog, trace } from "../../utils/log";
 import Network from "../../utils/network";
 import MediaCache from "../mediaCache";
 import _internalPluginMeta from "./meta";
+import {
+    reportPluginMethodError,
+    reportPluginMethodSuccess,
+} from "./health";
 import { IPluginManager } from "@/types/core/pluginManager";
 
 
@@ -172,8 +176,15 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
             };
         }
 
-        const result =
-            (await this.plugin.instance.search(query, page, type)) ?? {};
+        let result: IPlugin.ISearchResult<T>;
+        try {
+            result = (await this.plugin.instance.search(query, page, type)) ?? {};
+        } catch (e: any) {
+            reportPluginMethodError(this.plugin.name, this.plugin.hash, e);
+            throw e;
+        }
+
+        reportPluginMethodSuccess(this.plugin.name, this.plugin.hash);
         if (Array.isArray(result.data)) {
             result.data.forEach(_ => {
                 resetMediaItem(_, this.plugin.name);
@@ -274,6 +285,7 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
                 throw new Error("NOT RETRY");
             }
             trace("播放", "插件播放");
+            reportPluginMethodSuccess(parserPlugin.name, parserPlugin.hash);
             const result = {
                 url,
                 headers,
@@ -317,6 +329,9 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
             }
             errorLog("获取真实源失败", e?.message);
             devLog("error", "获取真实源失败", e, e?.message);
+            if (e?.message !== "NOT RETRY") {
+                reportPluginMethodError(parserPlugin.name, parserPlugin.hash, e);
+            }
             return null;
         }
     }
