@@ -10,6 +10,7 @@ import {
     useSubscriptionInfos,
     useSubscriptionItems,
     useSubscriptionRecords,
+    withSubscriptionId,
 } from "@/core/pluginManager/subscription";
 import { PluginHealthStatus, getPluginHealthStatus } from "@/core/pluginManager/health";
 import useColors from "@/hooks/useColors";
@@ -35,6 +36,16 @@ interface PluginGroup {
     name: string;
     plugins: Plugin[];
 }
+
+interface IAddSubscriptionAction {
+    kind: "add-subscription";
+}
+
+type SubscriptionSectionItem = ISubscriptionItem | IAddSubscriptionAction;
+
+const ADD_SUBSCRIPTION_ACTION: IAddSubscriptionAction = {
+    kind: "add-subscription",
+};
 
 function reportInstallResults(
     results: IInstallPluginResult[],
@@ -142,6 +153,12 @@ export default function PluginList() {
     );
     const archivedCount = plugins.filter(plugin =>
         getPluginHealthStatus(plugin.name) === PluginHealthStatus.Archived
+    ).length;
+    const availableCount = plugins.filter(plugin =>
+        getPluginHealthStatus(plugin.name) === PluginHealthStatus.Available
+    ).length;
+    const invalidCount = plugins.filter(plugin =>
+        getPluginHealthStatus(plugin.name) === PluginHealthStatus.UserInvalid
     ).length;
 
     const navigate = useCallback((path: string) => {
@@ -258,6 +275,29 @@ export default function PluginList() {
         setLoading(false);
     }
 
+    const onAddSubscriptionSubmit = (
+        subscribeItem: ISubscriptionItem,
+        hideDialog: () => void,
+    ) => {
+        if (
+            !subscribeItem.url.toLowerCase().endsWith(".js") &&
+            !subscribeItem.url.toLowerCase().endsWith(".json")
+        ) {
+            Toast.warn(t("toast.subscriptionHaveToEndWithJs"));
+            return;
+        }
+        const normalized = withSubscriptionId(subscribeItem);
+        if (subscriptions.some(it => it.id === normalized.id)) {
+            Toast.warn(t("toast.subscriptionAlreadyExists"));
+            return;
+        }
+        Config.setConfig(
+            "plugin.subscribeUrl",
+            JSON.stringify([...subscriptions, normalized]),
+        );
+        hideDialog();
+    };
+
     const sections = [
         {
             key: "overview",
@@ -292,12 +332,19 @@ export default function PluginList() {
                             })}
                         </ThemeText>
                     ) : null}
-                    <View style={styles.actionRow}>
-                        <IconAction
-                            icon="bars-3"
-                            title={t("pluginSetting.section.sort")}
-                            onPress={() => navigate("/pluginsetting/sort")}
-                        />
+                    <View style={styles.statRow}>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{availableCount}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.available")}
+                            </ThemeText>
+                        </View>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{invalidCount}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.invalid")}
+                            </ThemeText>
+                        </View>
                     </View>
                 </View>
             ),
@@ -305,8 +352,22 @@ export default function PluginList() {
         {
             key: "subscriptions",
             title: t("pluginSetting.section.subscription"),
-            data: subscriptions,
-            renderItem: ({ item }: { item: ISubscriptionItem }) => {
+            data: [ADD_SUBSCRIPTION_ACTION, ...subscriptions],
+            renderItem: ({ item }: { item: SubscriptionSectionItem }) => {
+                if ("kind" in item) {
+                    return (
+                        <ManageSubscriptionRow
+                            icon="plus"
+                            title={t("pluginSetting.subscription.add")}
+                            description={t("pluginSetting.subscription.addTip")}
+                            onPress={() => {
+                                showDialog("SubscribePluginDialog", {
+                                    onSubmit: onAddSubscriptionSubmit,
+                                });
+                            }}
+                        />
+                    );
+                }
                 const info = subscriptionInfos[item.id];
                 return (
                     <ListItem
@@ -327,14 +388,6 @@ export default function PluginList() {
                     </ListItem>
                 );
             },
-            ListEmptyComponent: (
-                <ManageSubscriptionRow
-                    icon="skip-right"
-                    title={t("pluginSetting.subscription.manage")}
-                    description={t("pluginSetting.subscription.manageTip")}
-                    onPress={() => navigate("/pluginsetting/subscribe")}
-                />
-            ),
         },
         {
             key: "maintenance",
@@ -548,11 +601,6 @@ const styles = StyleSheet.create({
     },
     warning: {
         marginTop: rpx(16),
-    },
-    actionRow: {
-        flexDirection: "row",
-        marginTop: rpx(16),
-        gap: rpx(12),
     },
     iconAction: {
         flex: 1,
