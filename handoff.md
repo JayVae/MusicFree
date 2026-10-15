@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-15
-当前状态：R3、R1/R2、R4、R5 已收尾；R6 代码实现中，待 Android 真机验收。
+当前状态：R3、R1/R2、R4、R5、R6 代码阶段均已收尾；R6 待 Android 真机验收，验收通过后进入最终回归。
 
 ## 1. 分支与提交
 
@@ -18,7 +18,19 @@ R4 关键提交：
 a1340ce fix(download): expose entry and refine history rows
 ```
 
-下一个需求从当前收尾分支创建：
+R6 当前分支（代码阶段收尾）：
+
+```text
+feat/0.6.2-plugin-startup
+```
+
+R6 关键提交：
+
+```text
+716b83b feat(plugin): metadata-first startup and restore optimization
+```
+
+验收通过后从当前分支创建最终回归分支（待定）。
 
 ```text
 feat/0.6.2-plugin-startup
