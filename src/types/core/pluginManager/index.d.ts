@@ -77,6 +77,11 @@ export interface IPluginManager {
      */
     updatePlugin(plugin: Plugin): Promise<void>;
 
+    updateSubscription(subscriptionId: string): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }>;
+
     updateAllSubscriptions(): Promise<{
         successResults: IInstallPluginResult[];
         failResults: IInstallPluginResult[];

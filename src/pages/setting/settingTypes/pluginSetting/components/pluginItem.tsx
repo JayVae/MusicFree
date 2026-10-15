@@ -25,7 +25,8 @@ import { IIconName } from "@/components/base/icon.tsx";
 import { useI18N } from "@/core/i18n";
 import IconButton from "@/components/base/iconButton";
 import useRerender from "@/hooks/useRerender";
-import { usePluginSubscriptionRecord } from "@/core/pluginManager/subscription";
+import { useAppConfig } from "@/core/appConfig";
+import { usePluginSubscriptionRecord, useSubscriptionItems } from "@/core/pluginManager/subscription";
 
 interface IPluginItemProps {
     plugin: Plugin;
@@ -52,6 +53,10 @@ function _PluginItem(props: IPluginItemProps) {
 
     const alternativePluginName = pluginManager.getAlternativePluginName(plugin);
     const subscriptionRecord = usePluginSubscriptionRecord(plugin.hash);
+    const rawSubscriptionConfig = useAppConfig("plugin.subscribeUrl");
+    const subscriptionName = useSubscriptionItems(rawSubscriptionConfig)
+        .find(it => it.id === subscriptionRecord?.subscriptionId)?.name
+        ?? subscriptionRecord?.sourceUrl;
 
     const options: IOption[] = [
         {
@@ -342,8 +347,7 @@ function _PluginItem(props: IPluginItemProps) {
                 <View style={styles.subscriptionDescription}>
                     <ThemeText fontSize="subTitle" fontColor="textSecondary" numberOfLines={1}>
                         {t("pluginSetting.pluginItem.subscriptionSource", {
-                            name: subscriptionRecord.pluginName,
-                            url: subscriptionRecord.sourceUrl,
+                            name: subscriptionName,
                         })}
                     </ThemeText>
                 </View>

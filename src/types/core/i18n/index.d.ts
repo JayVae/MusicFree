@@ -232,6 +232,14 @@ export interface ILanguageData {
     "pluginSetting.subscription.deleteContent": string; // 删除订阅确认
     "pluginSetting.subscription.deleteContentWithPlugins": string; // 删除订阅和关联插件确认
     "pluginSetting.subscription.deleteWithPlugins": string; // 删除订阅和插件
+    "pluginSetting.subscription.detail": string; // 订阅详情
+    "pluginSetting.subscription.notFound": string; // 订阅不存在
+    "pluginSetting.subscription.editTip": string; // 编辑订阅提示
+    "pluginSetting.subscription.updateThis": string; // 更新当前订阅
+    "pluginSetting.subscription.updateThisTip": string; // 更新当前订阅提示
+    "pluginSetting.subscription.deleteTip": string; // 删除订阅提示
+    "pluginSetting.subscription.updateFailedTitle": string; // 订阅更新失败明细
+    "pluginSetting.subscription.copyUrl": string; // 复制订阅地址
     "pluginSetting.subscription.deleteKeepPlugins": string; // 仅删除订阅
     "pluginSetting.sort.manage": string; // 调整插件顺序
     "pluginSetting.sort.manageTip": string; // 调整插件顺序提示

@@ -53,6 +53,7 @@ export default function SetUserVariables(props: IUserVariablesProps) {
                             }}>
                             {variables.map(it => (
                                 <ListItem
+                                    key={it.key || it.name}
                                     withHorizontalPadding
                                     style={styles.listItem}>
                                     <ThemeText

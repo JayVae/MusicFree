@@ -30,6 +30,7 @@ import {
 } from "./health";
 import {
     getActiveSubscriptionRecords,
+    ISubscriptionItem,
     markPluginArchivedAsDuplicate,
     markPluginUninstalled,
     markSubscriptionRecordsUninstalled,
@@ -578,14 +579,11 @@ class PluginManager implements IPluginManager, IInjectable {
         return pluginUrls;
     }
 
-    updateAllSubscriptions(): Promise<{
+    private enqueueSubscriptionUpdate(task: () => Promise<{
         successResults: IInstallPluginResult[];
         failResults: IInstallPluginResult[];
-    }> {
-        const updateTask = this.subscriptionUpdateQueue.then(
-            () => this.doUpdateAllSubscriptions(),
-            () => this.doUpdateAllSubscriptions(),
-        );
+    }>) {
+        const updateTask = this.subscriptionUpdateQueue.then(task, task);
         this.subscriptionUpdateQueue = updateTask.then(
             () => undefined,
             () => undefined,
@@ -593,13 +591,49 @@ class PluginManager implements IPluginManager, IInjectable {
         return updateTask;
     }
 
-    private async doUpdateAllSubscriptions(): Promise<{
+    updateAllSubscriptions(): Promise<{
         successResults: IInstallPluginResult[];
         failResults: IInstallPluginResult[];
     }> {
-        const subscriptions = parseSubscriptionConfig(
-            this.appConfigService.getConfig("plugin.subscribeUrl"),
-        );
+        return this.enqueueSubscriptionUpdate(async () => {
+            const subscriptions = parseSubscriptionConfig(
+                this.appConfigService.getConfig("plugin.subscribeUrl"),
+            );
+            return this.doUpdateSubscriptionItems(subscriptions);
+        });
+    }
+
+    updateSubscription(subscriptionId: string): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }> {
+        return this.enqueueSubscriptionUpdate(async () => {
+            const subscriptions = parseSubscriptionConfig(
+                this.appConfigService.getConfig("plugin.subscribeUrl"),
+            );
+            const subscription = subscriptions.find(
+                it => it.id === subscriptionId,
+            );
+            if (!subscription) {
+                return {
+                    successResults: [],
+                    failResults: [{
+                        success: false,
+                        message: "订阅不存在",
+                        pluginUrl: subscriptionId,
+                    }],
+                };
+            }
+            return this.doUpdateSubscriptionItems([subscription]);
+        });
+    }
+
+    private async doUpdateSubscriptionItems(
+        subscriptions: ISubscriptionItem[],
+    ): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }> {
         const successResults: IInstallPluginResult[] = [];
         const failResults: IInstallPluginResult[] = [];
 

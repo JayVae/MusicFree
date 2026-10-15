@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import PluginList from "./views/pluginList";
 import PluginSort from "./views/pluginSort";
 import PluginSubscribe from "./views/pluginSubscribe";
+import PluginSubscriptionDetail from "./views/pluginSubscriptionDetail";
 
 const Stack = createNativeStackNavigator<any>();
 
@@ -19,6 +20,10 @@ const routes = [
     {
         path: "/pluginsetting/subscribe",
         component: PluginSubscribe,
+    },
+    {
+        path: "/pluginsetting/subscribe/detail",
+        component: PluginSubscriptionDetail,
     },
 ];
 

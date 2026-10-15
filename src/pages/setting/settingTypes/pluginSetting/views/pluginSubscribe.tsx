@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { StyleSheet, View } from "react-native";
 import rpx from "@/utils/rpx";
 import Config, { useAppConfig } from "@/core/appConfig";
@@ -7,7 +7,7 @@ import Empty from "@/components/base/empty";
 import ListItem from "@/components/base/listItem";
 import ThemeText from "@/components/base/themeText";
 import Toast from "@/utils/toast";
-import Clipboard from "@react-native-clipboard/clipboard";
+import { useNavigation } from "@react-navigation/native";
 import HorizontalSafeAreaView from "@/components/base/horizontalSafeAreaView.tsx";
 import globalStyle from "@/constants/globalStyle";
 import { showDialog } from "@/components/dialogs/useDialog";
@@ -19,7 +19,6 @@ import {
     useSubscriptionItems,
     withSubscriptionId,
 } from "@/core/pluginManager/subscription";
-import PluginManager from "@/core/pluginManager";
 import { useI18N } from "@/core/i18n";
 
 const ITEM_HEIGHT = rpx(140);
@@ -28,12 +27,8 @@ export default function PluginSubscribe() {
     const rawSubscriptions = useAppConfig("plugin.subscribeUrl") ?? "";
     const subscribes = useSubscriptionItems(rawSubscriptions);
     const subscriptionInfos = useSubscriptionInfos();
-    const [, setSaving] = useState(false);
+    const navigator = useNavigation<any>();
     const { t } = useI18N();
-
-    const saveSubscriptions = (items: ISubscriptionItem[]) => {
-        Config.setConfig("plugin.subscribeUrl", JSON.stringify(items));
-    };
 
     const onSubmit = (
         subscribeItem: ISubscriptionItem,
@@ -41,64 +36,24 @@ export default function PluginSubscribe() {
         editingIndex?: number,
     ) => {
         if (
-            subscribeItem.url.toLowerCase().endsWith(".js") ||
-            subscribeItem.url.toLowerCase().endsWith(".json")
+            !subscribeItem.url.toLowerCase().endsWith(".js") &&
+            !subscribeItem.url.toLowerCase().endsWith(".json")
         ) {
-            const normalized = withSubscriptionId(subscribeItem);
-            const duplicated = subscribes.find(
-                (it, index) => it.id === normalized.id && index !== editingIndex,
-            );
-            if (duplicated) {
-                Toast.warn(t("toast.subscriptionAlreadyExists"));
-                return;
-            }
-            const nextSubscribes = editingIndex === undefined
-                ? [...subscribes, normalized]
-                : subscribes.map((it, index) => index === editingIndex ? normalized : it);
-            saveSubscriptions(nextSubscribes);
-            hideDialog();
-        } else {
             Toast.warn(t("toast.subscriptionHaveToEndWithJs"));
-        }
-    };
-
-    const onDelete = (editingIndex: number, hideDialog: () => void) => {
-        const subscription = subscribes[editingIndex];
-        if (!subscription) {
-            hideDialog();
             return;
         }
-        const associatedCount = PluginManager.getSubscriptionAssociatedPlugins(
-            subscription.id,
-        ).length;
-        showDialog("SimpleDialog", {
-            title: t("pluginSetting.subscription.deleteTitle"),
-            content: associatedCount
-                ? t("pluginSetting.subscription.deleteContentWithPlugins", {
-                    count: associatedCount,
-                })
-                : t("pluginSetting.subscription.deleteContent"),
-            okText: t("pluginSetting.subscription.deleteWithPlugins"),
-            cancelText: t("pluginSetting.subscription.deleteKeepPlugins"),
-            onOk: async () => {
-                setSaving(true);
-                try {
-                    await PluginManager.deleteSubscription(subscription.id, true);
-                    Toast.success(t("toast.deleteSuccess"));
-                } finally {
-                    setSaving(false);
-                }
-            },
-            onCancel: async () => {
-                setSaving(true);
-                try {
-                    await PluginManager.deleteSubscription(subscription.id, false);
-                    Toast.success(t("toast.deleteSuccess"));
-                } finally {
-                    setSaving(false);
-                }
-            },
-        });
+        const normalized = withSubscriptionId(subscribeItem);
+        const duplicated = subscribes.find(
+            (it, index) => it.id === normalized.id && index !== editingIndex,
+        );
+        if (duplicated) {
+            Toast.warn(t("toast.subscriptionAlreadyExists"));
+            return;
+        }
+        const nextSubscribes = editingIndex === undefined
+            ? [...subscribes, normalized]
+            : subscribes.map((it, index) => index === editingIndex ? normalized : it);
+        Config.setConfig("plugin.subscribeUrl", JSON.stringify(nextSubscribes));
         hideDialog();
     };
 
@@ -117,14 +72,10 @@ export default function PluginSubscribe() {
                             <ListItem
                                 withHorizontalPadding
                                 onPress={() => {
-                                    showDialog("SubscribePluginDialog", {
-                                        subscribeItem: item,
-                                        onSubmit,
-                                        editingIndex: subscribes.findIndex(
-                                            it => it.id === item.id,
-                                        ),
-                                        onDelete,
-                                    });
+                                    navigator.navigate(
+                                        "/pluginsetting/subscribe/detail",
+                                        { subscriptionId: item.id },
+                                    );
                                 }}>
                                 <ListItem.Content
                                     title={item.name}
@@ -150,12 +101,8 @@ export default function PluginSubscribe() {
                                     ) : null}
                                 </View>
                                 <ListItem.ListItemIcon
-                                    icon="share"
+                                    icon="skip-right"
                                     position="right"
-                                    onPress={() => {
-                                        Clipboard.setString(item.url);
-                                        Toast.success(t("toast.copiedToClipboard"));
-                                    }}
                                 />
                             </ListItem>
                         );

@@ -99,14 +99,24 @@ export function normalizeMediaMatchText(value?: string | number | null) {
         .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
+function normalizeDurationSeconds(value?: string | number | null) {
+    const duration = Number(value);
+    if (!Number.isFinite(duration) || duration <= 0) {
+        return 0;
+    }
+    // 部分插件返回毫秒，而目标媒体项常用秒；超过 1000 时按毫秒归一化。
+    return duration > 1000 ? duration / 1000 : duration;
+}
+
 export function isDurationMatch(
     sourceDuration?: string | number | null,
     targetDuration?: string | number | null,
 ) {
-    const source = Number(sourceDuration);
-    const target = Number(targetDuration);
-    if (!Number.isFinite(source) || !Number.isFinite(target) || source <= 0 || target <= 0) {
-        return false;
+    const source = normalizeDurationSeconds(sourceDuration);
+    const target = normalizeDurationSeconds(targetDuration);
+    if (!source || !target) {
+        // 目标缺失时不因 duration 直接排除，后续仍要求标题/艺人完全一致。
+        return true;
     }
     return Math.abs(source - target) <= PLAY_SOURCE_FALLBACK_DURATION_TOLERANCE_SECONDS;
 }
@@ -224,6 +234,11 @@ export class MediaSourceFallbackResolver {
                     plugin: plugin.name,
                     resultCount: results?.data?.length ?? 0,
                     matchedCount: matchedItems.length,
+                    candidateSamples: (results?.data ?? []).slice(0, 10).map(item => ({
+                        title: item.title,
+                        artist: item.artist,
+                        duration: item.duration,
+                    })),
                 });
 
                 for (const matchedItem of matchedItems) {
