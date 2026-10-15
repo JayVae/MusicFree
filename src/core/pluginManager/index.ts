@@ -18,7 +18,7 @@ import { atom, getDefaultStore, useAtomValue } from "jotai";
 import { nanoid } from "nanoid";
 import { useEffect, useState } from "react";
 import { ToastAndroid } from "react-native";
-import { copyFile, readDir, readFile, unlink, writeFile } from "react-native-fs";
+import { copyFile, readDir, readFile, stat, unlink, writeFile } from "react-native-fs";
 import { devLog, errorLog, trace } from "../../utils/log";
 import pluginMeta from "./meta";
 import {
@@ -45,7 +45,6 @@ import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
 import { IInjectable } from "@/types/infra";
 import { IAppConfig } from "@/types/core/config";
-import delay from "@/utils/delay";
 
 const pluginsAtom = atom<Plugin[]>([]);
 const pluginCacheStore = getOrCreateMMKV("plugin.cache");
@@ -121,32 +120,42 @@ class PluginManager implements IPluginManager, IInjectable {
 
     private updatePluginCache(plugin: Plugin) {
         if (plugin.path && plugin.state === PluginState.Mounted) {
-            pluginCacheStore.set(
-                plugin.path,
-                JSON.stringify({
-                    name: plugin.name,
-                    hash: plugin.hash,
-                    path: plugin.path,
-                    instance: plugin.instance,
-                    supportedMethods: [...plugin.supportedMethods],
-                }),
-            );
+            const entry: Record<string, unknown> = {
+                name: plugin.name,
+                hash: plugin.hash,
+                path: plugin.path,
+                instance: JSON.parse(JSON.stringify(plugin.instance)),
+                supportedMethods: [...plugin.supportedMethods],
+            };
+            // R6: 记录文件统计信息用于变更检测
+            stat(plugin.path)
+                .then(statResult => {
+                    entry.fileStats = {
+                        mtime: statResult.mtime,
+                        size: statResult.size,
+                    };
+                    pluginCacheStore.set(plugin.path, JSON.stringify(entry));
+                })
+                .catch(() => {
+                    pluginCacheStore.set(plugin.path, JSON.stringify(entry));
+                });
         }
     }
 
     /**
-     * 初始化插件管理器，从文件系统加载所有插件
-     * 读取插件目录中的所有.js文件并创建插件实例
+     * 初始化插件管理器
+     * R6 元数据先行：启动阶段只恢复插件元数据，不执行插件源码。
+     * 首次调用插件方法时再挂载（见 Plugin.ensureMounted）。
      * @throws 如果插件初始化失败则抛出异常
      */
     async setup() {
+        const setupStartAt = Date.now();
         try {
             await pluginMeta.migratePluginMeta();
             preparePluginHealthForLaunch();
-            // 加载插件
+            // 读取插件目录
             const pluginsFileItems = await readDir(pathConst.pluginPath);
             const allPlugins: Array<Plugin> = [];
-
 
             for (let i = 0; i < pluginsFileItems.length; ++i) {
                 const pluginFileItem = pluginsFileItems[i];
@@ -156,25 +165,46 @@ class PluginManager implements IPluginManager, IInjectable {
                     (pluginFileItem.name?.endsWith?.(".js") ||
                         pluginFileItem.path?.endsWith?.(".js"))
                 ) {
-                    // 如果存在缓存信息
                     let plugin: Plugin;
                     let isLazyLoad = false;
-                    if (
-                        this.appConfigService.getConfig(
-                            "basic.lazyLoadPlugin",
-                        ) &&
-                        pluginCacheStore.contains(pluginFileItem.path)
-                    ) {
+
+                    // R6: 获取文件统计信息，用于检测插件文件变更
+                    let fileStats: { mtime: number; size: number } | null = null;
+                    try {
+                        const statResult = await stat(pluginFileItem.path);
+                        fileStats = {
+                            mtime: statResult.mtime,
+                            size: statResult.size,
+                        };
+                    } catch {
+                        // stat 失败时跳过变更检测
+                    }
+
+                    // R6: 元数据缓存有效时，不读取 / eval 插件源码
+                    const cachedMeta = safeParse(
+                        pluginCacheStore.getString(pluginFileItem.path),
+                    );
+                    const cacheStats = cachedMeta?.fileStats;
+                    const cacheValid =
+                        cachedMeta?.name &&
+                        cachedMeta?.hash &&
+                        (!fileStats ||
+                            !cacheStats ||
+                            (cacheStats.mtime === fileStats.mtime &&
+                                cacheStats.size === fileStats.size));
+
+                    if (cacheValid) {
+                        // 元数据先行：仅恢复名称 / hash / supportedMethods 等
                         isLazyLoad = true;
-                        const lazyProps = safeParse(pluginCacheStore.getString(pluginFileItem.path));
-                        lazyProps.loadFuncCode = async () =>
+                        cachedMeta.loadFuncCode = async () =>
                             await readFile(pluginFileItem.path, "utf8");
                         plugin = new Plugin(
                             null,
                             pluginFileItem.path,
-                            lazyProps,
+                            cachedMeta,
                         );
                     } else {
+                        // 缓存缺失或文件已变更：完整挂载以提取元数据（仅此一次）
                         const funcCode = await readFile(
                             pluginFileItem.path,
                             "utf8",
@@ -182,6 +212,7 @@ class PluginManager implements IPluginManager, IInjectable {
                         plugin = new Plugin(funcCode, pluginFileItem.path);
                     }
 
+                    // R6: 挂载前通过元数据 hash 去重
                     const _pluginIndex = allPlugins.findIndex(
                         p => p.hash === plugin.hash,
                     );
@@ -196,18 +227,12 @@ class PluginManager implements IPluginManager, IInjectable {
             }
 
             this.setPlugins(allPlugins);
-            // 异步初始化插件
 
-            delay(10_000, true).then(async () => {
-                for (let i = 0; i < allPlugins.length; ++i) {
-                    const plugin = allPlugins[i];
-
-                    if (plugin.state === PluginState.Initializing) {
-                        await plugin.ensureMounted();
-                        this.updatePluginCache(plugin);
-                    }
-                }
+            trace("R6 插件元数据加载完成", {
+                count: allPlugins.length,
+                elapsed: Date.now() - setupStartAt,
             });
+            // R6 (D39): 移除启动阶段延迟预挂载；插件代码在首次服务调用时再挂载
         } catch (e: any) {
             ToastAndroid.show(
                 `插件初始化失败:${e?.message ?? e}`,

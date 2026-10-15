@@ -156,30 +156,37 @@ class TrackPlayer extends EventEmitter<{
         }
 
         if (track && this.isInPlayList(track)) {
-            if (!this.configService.getConfig("basic.autoPlayWhenAppStart")) {
+            const shouldAutoPlay = this.configService.getConfig(
+                "basic.autoPlayWhenAppStart",
+            );
+            if (!shouldAutoPlay) {
                 track.isInit = true;
             }
 
-            // 异步
-            this.pluginManagerService.getByMedia(track)
-                ?.methods.getMediaSource(track, quality)
-                .then(async newSource => {
-                    track.url = newSource?.url || track.url;
-                    track.headers = newSource?.headers || track.headers;
-
-                    if (isSameMediaItem(this.currentMusic, track)) {
-                        await this.setTrackSource(track as Track, false);
-                        if (progress) {
-                            // 异步
-                            this.seekTo(progress);
-                        }
-                    }
-                });
             this.setCurrentMusic(track);
 
             if (progress) {
                 // 异步
                 this.seekTo(progress);
+            }
+
+            // R6 (D40): 未开启启动自动播放时，只还原队列 / 当前歌 / 进度，不请求真实音源
+            if (shouldAutoPlay) {
+                // 异步
+                this.pluginManagerService.getByMedia(track)
+                    ?.methods.getMediaSource(track, quality)
+                    .then(async newSource => {
+                        track.url = newSource?.url || track.url;
+                        track.headers = newSource?.headers || track.headers;
+
+                        if (isSameMediaItem(this.currentMusic, track)) {
+                            await this.setTrackSource(track as Track, false);
+                            if (progress) {
+                                // 异步
+                                this.seekTo(progress);
+                            }
+                        }
+                    });
             }
         }
 
