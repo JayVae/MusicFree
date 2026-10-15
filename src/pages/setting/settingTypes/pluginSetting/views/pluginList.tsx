@@ -1,72 +1,151 @@
-import React, { useState } from "react";
-import { FlatList, StyleSheet, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { SectionList, StyleSheet, View } from "react-native";
 import rpx from "@/utils/rpx";
 import * as DocumentPicker from "expo-document-picker";
 import Loading from "@/components/base/loading";
 
-import PluginManager, { useSortedPlugins } from "@/core/pluginManager";
+import PluginManager, { Plugin, useSortedPlugins } from "@/core/pluginManager";
+import {
+    ISubscriptionItem,
+    useSubscriptionInfos,
+    useSubscriptionItems,
+    useSubscriptionRecords,
+} from "@/core/pluginManager/subscription";
+import { PluginHealthStatus, getPluginHealthStatus } from "@/core/pluginManager/health";
+import useColors from "@/hooks/useColors";
 import { trace } from "@/utils/log";
 
 import Toast from "@/utils/toast";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
-import Config from "@/core/appConfig";
+import Config, { useAppConfig } from "@/core/appConfig";
 import Empty from "@/components/base/empty";
 import HorizontalSafeAreaView from "@/components/base/horizontalSafeAreaView.tsx";
 import { showDialog } from "@/components/dialogs/useDialog";
 import { showPanel } from "@/components/panels/usePanel";
 import AppBar from "@/components/base/appBar";
-import Fab from "@/components/base/fab";
+import ThemeText from "@/components/base/themeText";
+import ListItem from "@/components/base/listItem";
 import PluginItem from "../components/pluginItem";
 import { IIconName } from "@/components/base/icon.tsx";
 import { IInstallPluginResult } from "@/types/core/pluginManager";
 import { useI18N } from "@/core/i18n";
 
-interface IOption {
+interface PluginGroup {
+    name: string;
+    plugins: Plugin[];
+}
+
+function reportInstallResults(
+    results: IInstallPluginResult[],
+    t: (key: any, options?: any) => string,
+) {
+    const successResults = results.filter(it => it.success);
+    const failResults = results.filter(it => !it.success);
+    if (!failResults.length) {
+        Toast.success(t("toast.installPluginSuccess"));
+        return;
+    }
+    Toast.warn(successResults.length
+        ? t("toast.partialPluginInstallFailed")
+        : t("toast.allPluginInstallFailed"), {
+        type: "warn",
+        actionText: t("common.view"),
+        onActionClick: () => {
+            showDialog("SimpleDialog", {
+                title: t("pluginSetting.menu.pluginInstallFailedDialogTitle"),
+                content: t("pluginSetting.pluginInstallFailedDialogContent", {
+                    detail: failResults.map(it =>
+                        `${it.pluginUrl ?? ""}\n${
+                            t("pluginSetting.failReason", {
+                                reason: it.message ?? "",
+                            })
+                        }`
+                    ).join("\n-----\n"),
+                }),
+            });
+        },
+    });
+}
+
+function ManageSubscriptionRow(props: {
     icon: IIconName;
     title: string;
-    onPress?: () => void;
+    description: string;
+    onPress: () => void;
+}) {
+    return (
+        <ListItem withHorizontalPadding onPress={props.onPress}>
+            <ListItem.Content title={props.title} description={props.description} />
+            <ListItem.ListItemIcon icon={props.icon} position="right" />
+        </ListItem>
+    );
 }
 
 export default function PluginList() {
     const plugins = useSortedPlugins();
+    const colors = useColors();
     const { t } = useI18N();
-
     const [loading, setLoading] = useState(false);
-
     const navigator = useNavigation<any>();
+    const rawSubscriptions = useAppConfig("plugin.subscribeUrl");
+    const subscriptions = useSubscriptionItems(rawSubscriptions);
+    const subscriptionInfos = useSubscriptionInfos();
+    const subscriptionRecords = useSubscriptionRecords();
 
-    const menuOptions: IOption[] = [
-        {
-            icon: "bookmark-square",
-            title: t("pluginSetting.menu.subscriptionSetting"),
-            async onPress() {
-                navigator.navigate("/pluginsetting/subscribe");
-            },
-        },
-        {
-            icon: "bars-3",
-            title: t("pluginSetting.menu.sort"),
-            onPress() {
-                navigator.navigate("/pluginsetting/sort");
-            },
-        },
-        {
-            icon: "trash-outline",
-            title: t("pluginSetting.menu.uninstallAll"),
-            onPress() {
-                showDialog("SimpleDialog", {
-                    title: t("pluginSetting.menu.uninstallAll"),
-                    content: t("pluginSetting.menu.uninstallAllContent"),
-                    async onOk() {
-                        setLoading(true);
-                        await PluginManager.uninstallAllPlugins();
-                        setLoading(false);
-                    },
-                });
-            },
-        },
-    ];
+    const pluginGroups = useMemo(() => {
+        const groupMap = new Map<string, Plugin[]>();
+        plugins.forEach(plugin => {
+            const group = groupMap.get(plugin.name) ?? [];
+            group.push(plugin);
+            groupMap.set(plugin.name, group);
+        });
+        return [...groupMap.entries()].map(([name, groupPlugins]) => ({
+            name,
+            plugins: groupPlugins,
+        }));
+    }, [plugins]);
+
+    const duplicateSourceNames = useMemo(() => {
+        const sourceMap = new Map<string, Set<string>>();
+        plugins.forEach(plugin => {
+            const sourceUrl = plugin.instance.srcUrl?.trim();
+            if (!sourceUrl) {
+                return;
+            }
+            const names = sourceMap.get(sourceUrl) ?? new Set<string>();
+            names.add(plugin.name);
+            sourceMap.set(sourceUrl, names);
+        });
+        return new Set(
+            [...sourceMap.values()]
+                .filter(names => names.size > 1)
+                .flatMap(names => [...names]),
+        );
+    }, [plugins]);
+
+    const installedHashes = useMemo(
+        () => new Set(plugins.map(plugin => plugin.hash)),
+        [plugins],
+    );
+    const missingCount = useMemo(
+        () => new Set(
+            subscriptionRecords
+                .filter(record =>
+                    record.missingFromSubscription &&
+                    installedHashes.has(record.pluginHash)
+                )
+                .map(record => record.pluginHash),
+        ).size,
+        [subscriptionRecords, installedHashes],
+    );
+    const archivedCount = plugins.filter(plugin =>
+        getPluginHealthStatus(plugin.name) === PluginHealthStatus.Archived
+    ).length;
+
+    const navigate = useCallback((path: string) => {
+        navigator.navigate(path);
+    }, [navigator]);
 
     async function onInstallFromLocalClick() {
         try {
@@ -76,24 +155,17 @@ export default function PluginList() {
                 type: ["application/javascript", "text/javascript"],
             });
             if (results.canceled) {
-                // 用户取消
                 return;
             }
             setLoading(true);
-
-            await Promise.all(
-                results.assets.map(async it => {
-                    await PluginManager.installPluginFromLocalFile(it.uri, {
-                        notCheckVersion: Config.getConfig(
-                            "basic.notCheckPluginVersion",
-                        ),
-                        useExpoFs: true,
-                    });
-                }),
-            );
-            // 初步过滤
-
-            Toast.success(t("toast.installPluginSuccess"));
+            const installResults: IInstallPluginResult[] = [];
+            for (const asset of results.assets) {
+                installResults.push(await PluginManager.installPluginFromLocalFile(asset.uri, {
+                    notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+                    useExpoFs: true,
+                }));
+            }
+            reportInstallResults(installResults, t);
         } catch (e: any) {
             trace("插件安装失败", e?.message);
             Toast.warn(t("toast.installPluginFail", {
@@ -111,151 +183,50 @@ export default function PluginList() {
             async onOk(text, closePanel) {
                 setLoading(true);
                 closePanel();
-
-                const result = await installPluginFromUrl(text.trim());
-
-                // 检查是否全部安装成功
-                const successResults: IInstallPluginResult[] = [];
-                const failResults: IInstallPluginResult[] = [];
-                for (let i = 0; i < result.length; ++i) {
-                    if (result[i].success) {
-                        successResults.push(result[i]);
-                    } else {
-                        failResults.push(result[i]);
-                    }
-                }
-
-                if (!failResults.length) {
-                    Toast.success(t("toast.installPluginSuccess"));
-                } else {
-                    Toast.warn(successResults.length ? t("toast.partialPluginInstallFailed") : t("toast.allPluginInstallFailed"), {
-                        "type": "warn",
-                        "actionText": t("common.view"),
-                        "onActionClick": () => {
-                            showDialog("SimpleDialog", {
-                                title: t("pluginSetting.menu.pluginInstallFailedDialogTitle"),
-                                content: t("pluginSetting.pluginInstallFailedDialogContent", {
-                                    detail: failResults.map(it => (it.pluginUrl ?? "") + "\n" + t("pluginSetting.failReason", {
-                                        reason: it.message ?? "",
-                                    })).join("\n-----\n"),
-                                }),
-                            });
-                        },
-                    });
-                }
-
-
+                const results = await installPluginFromUrl(text.trim());
+                reportInstallResults(results, t);
                 setLoading(false);
             },
         });
     }
 
-    async function onSubscribeClick() {
-        const urls = Config.getConfig("plugin.subscribeUrl");
-        if (!urls) {
-            Toast.warn(t("toast.noSubscription"));
-        }
-        setLoading(true);
-
-        const successResults: IInstallPluginResult[] = [];
-        const failResults: IInstallPluginResult[] = [];
-
-        try {
-            const urlItems = JSON.parse(urls!);
-            if (Array.isArray(urlItems)) {
-                for (let i = 0; i < urlItems.length; ++i) {
-                    const result = await installPluginFromUrl(urlItems[i].url);
-                    if (result[0]) {
-                        if (result[0].success) {
-                            successResults.push(result[0]);
-                        } else {
-                            failResults.push(result[0]);
-                        }
-                    }
-                }
-            } else {
-                throw new Error();
-            }
-
-            if (!failResults.length) {
-                Toast.success(t("toast.installPluginSuccess"));
-            } else {
-                Toast.warn((successResults.length ? t("toast.partialPluginInstallFailed") : t("toast.allPluginInstallFailed")), {
-                    "type": "warn",
-                    "actionText": t("common.view"),
-                    "onActionClick": () => {
-                        showDialog("SimpleDialog", {
-                            title: t("pluginSetting.menu.pluginInstallFailedDialogTitle"),
-                            content: t("pluginSetting.pluginInstallFailedDialogContent", {
-                                detail: failResults.map(it => (it.pluginUrl ?? "") + "\n" + t("pluginSetting.failReason", {
-                                    reason: it.message ?? "",
-                                })).join("\n-----\n"),
-                            }),
-                        });
-                    },
-                });
-            }
-
-        } catch {
-            if (urls?.length) {
-                const result = await installPluginFromUrl(urls);
-                if (result[0]) {
-                    if (result[0].success) {
-                        Toast.success(t("toast.installPluginSuccess"));
-                    } else {
-                        Toast.warn(t("toast.partialPluginInstallFailedWithReason", {
-                            reason: result[0].message ?? "",
-                        }));
-                    }
-                } else {
-                    Toast.warn(t("toast.subscriptionInvalid"));
-                }
-            }
-        }
-        setLoading(false);
-    }
-
     async function onUpdateAllClick() {
-        const plugins = PluginManager.getEnabledPlugins();
         setLoading(true);
-
-        const successResults: IInstallPluginResult[] = [];
-        const failResults: IInstallPluginResult[] = [];
-
         try {
-            for (let i = 0; i < plugins.length; ++i) {
-                const srcUrl = plugins[i].instance.srcUrl;
-                if (srcUrl) {
-                    const result = await installPluginFromUrl(srcUrl);
-                    if (result[0]) {
-                        if (result[0].success) {
-                            successResults.push(result[0]);
-                        } else {
-                            failResults.push(result[0]);
-                        }
-                    }
+            const results: IInstallPluginResult[] = [];
+            const enabledPlugins = PluginManager.getEnabledPlugins();
+            for (const plugin of enabledPlugins) {
+                if (!plugin.instance.srcUrl) {
+                    continue;
                 }
+                results.push(...await installPluginFromUrl(plugin.instance.srcUrl));
             }
-
+            const successResults = results.filter(it => it.success);
+            const failResults = results.filter(it => !it.success);
             if (!failResults.length) {
                 Toast.success(t("toast.updatePluginSuccess"));
             } else {
-                Toast.warn((successResults.length ? t("toast.partialPluginUpdateFailed") : t("toast.allPluginUpdateFailed")), {
-                    "type": "warn",
-                    "actionText": t("common.view"),
-                    "onActionClick": () => {
+                Toast.warn(successResults.length
+                    ? t("toast.partialPluginUpdateFailed")
+                    : t("toast.allPluginUpdateFailed"), {
+                    type: "warn",
+                    actionText: t("common.view"),
+                    onActionClick: () => {
                         showDialog("SimpleDialog", {
                             title: t("pluginSetting.menu.pluginUpdateFailedDialogTitle"),
                             content: t("pluginSetting.pluginUpdateFailedDialogContent", {
-                                detail: failResults.map(it => (it.pluginUrl ?? "") + "\n" + t("pluginSetting.failReason", {
-                                    reason: it.message ?? "",
-                                })).join("\n-----\n"),
+                                detail: failResults.map(it =>
+                                    `${it.pluginUrl ?? ""}\n${
+                                        t("pluginSetting.failReason", {
+                                            reason: it.message ?? "",
+                                        })
+                                    }`
+                                ).join("\n-----\n"),
                             }),
                         });
                     },
                 });
             }
-
         } catch (e: any) {
             Toast.warn(t("toast.unknownError", {
                 reason: e?.message ?? e,
@@ -264,68 +235,266 @@ export default function PluginList() {
         setLoading(false);
     }
 
-    return (
-        <>
-            <AppBar menu={menuOptions}>{t("sidebar.pluginManagement")}</AppBar>
-            <HorizontalSafeAreaView style={style.wrapper}>
-                <>
-                    {loading ? (
-                        <Loading />
-                    ) : (
-                        <FlatList
-                            ListEmptyComponent={Empty}
-                            ListFooterComponent={<View style={style.blank} />}
-                            data={plugins ?? []}
-                            keyExtractor={_ => _.hash}
-                            renderItem={({ item: plugin }) => (
-                                <PluginItem key={plugin.hash} plugin={plugin} />
+    async function onUpdateSubscriptionClick() {
+        setLoading(true);
+        try {
+            const { successResults, failResults } =
+                await PluginManager.updateAllSubscriptions();
+            if (!failResults.length) {
+                Toast.success(t("toast.updateSubscriptionSuccess"));
+            } else if (!successResults.length) {
+                Toast.warn(t("toast.updateSubscriptionFailed"));
+            } else {
+                Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
+                    count: failResults.length,
+                }));
+            }
+        } catch (e: any) {
+            Toast.warn(t("toast.unknownError", {
+                reason: e?.message ?? e,
+            }));
+        }
+        setLoading(false);
+    }
+
+    const sections = [
+        {
+            key: "overview",
+            title: t("pluginSetting.section.overview"),
+            data: [1],
+            renderItem: () => (
+                <View style={[styles.overview, { backgroundColor: colors.card }]}>
+                    <View style={styles.statRow}>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{plugins.length}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.installed")}
+                            </ThemeText>
+                        </View>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{subscriptions.length}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.subscriptions")}
+                            </ThemeText>
+                        </View>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{archivedCount}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.archived")}
+                            </ThemeText>
+                        </View>
+                    </View>
+                    {missingCount > 0 ? (
+                        <ThemeText fontColor="textSecondary" style={styles.warning}>
+                            {t("pluginSetting.subscription.missingCount", {
+                                count: missingCount,
+                            })}
+                        </ThemeText>
+                    ) : null}
+                    <View style={styles.actionRow}>
+                        <IconAction
+                            icon="bookmark-square"
+                            title={t("pluginSetting.section.subscription")}
+                            onPress={() => navigate("/pluginsetting/subscribe")}
+                        />
+                        <IconAction
+                            icon="bars-3"
+                            title={t("pluginSetting.section.sort")}
+                            onPress={() => navigate("/pluginsetting/sort")}
+                        />
+                    </View>
+                </View>
+            ),
+        },
+        {
+            key: "installed",
+            title: t("pluginSetting.section.installed"),
+            data: pluginGroups,
+            renderItem: ({ item }: { item: PluginGroup }) => (
+                <View>
+                    {item.plugins.map((plugin, index) => (
+                        <PluginItem
+                            key={plugin.hash}
+                            plugin={plugin}
+                            duplicateCount={item.plugins.length}
+                            duplicateIndex={index + 1}
+                            duplicateSourceGroup={duplicateSourceNames.has(
+                                plugin.name,
                             )}
                         />
-                    )}
-
-                    <Fab
+                    ))}
+                </View>
+            ),
+        },
+        {
+            key: "subscriptions",
+            title: t("pluginSetting.section.subscription"),
+            data: subscriptions,
+            renderItem: ({ item }: { item: ISubscriptionItem }) => {
+                const info = subscriptionInfos[item.id];
+                return (
+                    <ListItem
+                        withHorizontalPadding
+                        onPress={() => navigate("/pluginsetting/subscribe")}>
+                        <ListItem.Content
+                            title={item.name}
+                            description={info?.lastUpdatedAt
+                                ? t("pluginSetting.subscription.lastUpdated", {
+                                    time: new Date(info.lastUpdatedAt).toLocaleString(),
+                                })
+                                : item.url}
+                        />
+                        <ListItem.ListItemIcon icon="bookmark-square" position="right" />
+                    </ListItem>
+                );
+            },
+            ListEmptyComponent: (
+                <ManageSubscriptionRow
+                    icon="skip-right"
+                    title={t("pluginSetting.subscription.manage")}
+                    description={t("pluginSetting.subscription.manageTip")}
+                    onPress={() => navigate("/pluginsetting/subscribe")}
+                />
+            ),
+        },
+        {
+            key: "sort",
+            title: t("pluginSetting.section.sort"),
+            data: [1],
+            renderItem: () => (
+                <ListItem
+                    withHorizontalPadding
+                    onPress={() => navigate("/pluginsetting/sort")}>
+                    <ListItem.Content
+                        title={t("pluginSetting.sort.manage")}
+                        description={t("pluginSetting.sort.manageTip")}
+                    />
+                    <ListItem.ListItemIcon icon="skip-right" position="right" />
+                </ListItem>
+            ),
+        },
+        {
+            key: "maintenance",
+            title: t("pluginSetting.section.maintenance"),
+            data: [1],
+            renderItem: () => (
+                <View style={styles.maintenance}>
+                    <IconAction
                         icon="plus"
+                        title={t("pluginSetting.fabOptions.installFromLocal")}
+                        onPress={onInstallFromLocalClick}
+                    />
+                    <IconAction
+                        icon="plus"
+                        title={t("pluginSetting.fabOptions.installFromNetwork")}
+                        onPress={onInstallFromNetworkClick}
+                    />
+                    <IconAction
+                        icon="arrow-path"
+                        title={t("pluginSetting.fabOptions.updateAllPlugins")}
+                        onPress={onUpdateAllClick}
+                    />
+                    <IconAction
+                        icon="arrow-path"
+                        title={t("pluginSetting.fabOptions.updateSubscription")}
+                        onPress={onUpdateSubscriptionClick}
+                    />
+                    <IconAction
+                        icon="trash-outline"
+                        title={t("pluginSetting.menu.uninstallAll")}
                         onPress={() => {
-                            showPanel("SimpleSelect", {
-                                header: t("pluginSetting.menu.installPlugin"),
-                                candidates: [
-                                    {
-                                        value: "从本地安装插件",
-                                        title: t("pluginSetting.fabOptions.installFromLocal"),
-                                    },
-                                    {
-                                        value: "从网络安装插件",
-                                        title: t("pluginSetting.fabOptions.installFromNetwork"),
-                                    },
-                                    {
-                                        value: "更新全部插件",
-                                        title: t("pluginSetting.fabOptions.updateAllPlugins"),
-                                    },
-                                    {
-                                        value: "更新订阅",
-                                        title: t("pluginSetting.fabOptions.updateSubscription"),
-                                    },
-                                ],
-                                onPress(item) {
-                                    if (item.value === "从本地安装插件") {
-                                        onInstallFromLocalClick();
-                                    } else if (
-                                        item.value === "从网络安装插件"
-                                    ) {
-                                        onInstallFromNetworkClick();
-                                    } else if (item.value === "更新订阅") {
-                                        onSubscribeClick();
-                                    } else if (item.value === "更新全部插件") {
-                                        onUpdateAllClick();
-                                    }
+                            showDialog("SimpleDialog", {
+                                title: t("pluginSetting.menu.uninstallAll"),
+                                content: t("pluginSetting.menu.uninstallAllContent"),
+                                async onOk() {
+                                    setLoading(true);
+                                    await PluginManager.uninstallAllPlugins();
+                                    setLoading(false);
                                 },
                             });
                         }}
                     />
-                </>
+                </View>
+            ),
+        },
+    ];
+
+    return (
+        <>
+            <AppBar>{t("sidebar.pluginManagement")}</AppBar>
+            <HorizontalSafeAreaView style={style.wrapper}>
+                {loading ? (
+                    <Loading />
+                ) : (
+                    <SectionList
+                        sections={sections as any}
+                        keyExtractor={(item, index) => `${index}`}
+                        renderSectionHeader={({ section }) => (
+                            <ThemeText
+                                fontWeight="bold"
+                                style={styles.sectionHeader}>
+                                {section.title}
+                            </ThemeText>
+                        )}
+                        renderItem={({ section, item, index }) =>
+                            (section as any).renderItem({ item, index })
+                        }
+                        ListEmptyComponent={Empty}
+                        contentContainerStyle={styles.listContent}
+                        ListFooterComponent={<View style={styles.footer} />}
+                    />
+                )}
             </HorizontalSafeAreaView>
         </>
     );
+}
+
+function IconAction(props: {
+    icon: IIconName;
+    title: string;
+    onPress?: () => void;
+}) {
+    return (
+        <ListItem
+            withHorizontalPadding
+            style={styles.iconAction}
+            onPress={props.onPress}>
+            <ListItem.ListItemIcon icon={props.icon} />
+            <ListItem.Content title={props.title} />
+        </ListItem>
+    );
+}
+
+async function installPluginFromUrl(text: string): Promise<IInstallPluginResult[]> {
+    try {
+        const inputUrl = text.trim();
+        if (!inputUrl.toLowerCase().endsWith(".json")) {
+            return [await PluginManager.installPluginFromUrl(inputUrl, {
+                notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+            })];
+        }
+        const jsonFile = (
+            await axios.get(inputUrl, {
+                headers: {
+                    "Cache-Control": "no-cache",
+                    Pragma: "no-cache",
+                    Expires: "0",
+                },
+            })
+        ).data;
+        const urls = (jsonFile?.plugins ?? [])
+            .map((it: any) => it?.url)
+            .filter((url: unknown): url is string => typeof url === "string");
+        const results: IInstallPluginResult[] = [];
+        for (const url of urls) {
+            results.push(await PluginManager.installPluginFromUrl(url, {
+                notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+            }));
+        }
+        return results;
+    } catch (e: any) {
+        return [{ success: false, message: e?.message, pluginUrl: text }];
+    }
 }
 
 const style = StyleSheet.create({
@@ -333,49 +502,47 @@ const style = StyleSheet.create({
         width: "100%",
         flex: 1,
     },
-    blank: {
-        height: rpx(200),
-    },
 });
 
-
-
-async function installPluginFromUrl(text: string): Promise<IInstallPluginResult[]> {
-    try {
-        let urls: string[] = [];
-        const inputUrl = text.trim();
-        if (text.endsWith(".json")) {
-            const jsonFile = (
-                await axios.get(inputUrl, {
-                    headers: {
-                        "Cache-Control": "no-cache",
-                        Pragma: "no-cache",
-                        Expires: "0",
-                    },
-                })
-            ).data;
-            /**
-             * {
-             *     plugins: [{
-             *          version: xxx,
-             *          url: xxx
-             *      }]
-             * }
-             */
-            urls = (jsonFile?.plugins ?? []).map((_: any) => _.url);
-        } else {
-            urls = [inputUrl];
-        }
-        return await Promise.all(
-            urls.map(url =>
-                PluginManager.installPluginFromUrl(url, {
-                    notCheckVersion: Config.getConfig(
-                        "basic.notCheckPluginVersion",
-                    ),
-                }),
-            ),
-        );
-    } catch (e: any) {
-        return [{ success: false, message: e?.message, pluginUrl: text }];
-    }
-}
+const styles = StyleSheet.create({
+    listContent: {
+        paddingBottom: rpx(120),
+    },
+    sectionHeader: {
+        marginTop: rpx(32),
+        marginBottom: rpx(12),
+        paddingHorizontal: rpx(24),
+    },
+    footer: {
+        height: rpx(80),
+    },
+    overview: {
+        marginHorizontal: rpx(24),
+        padding: rpx(20),
+        borderRadius: rpx(12),
+    },
+    statRow: {
+        flexDirection: "row",
+    },
+    stat: {
+        flex: 1,
+        alignItems: "center",
+        gap: rpx(4),
+    },
+    warning: {
+        marginTop: rpx(16),
+    },
+    actionRow: {
+        flexDirection: "row",
+        marginTop: rpx(16),
+        gap: rpx(12),
+    },
+    iconAction: {
+        flex: 1,
+        borderRadius: rpx(10),
+    },
+    maintenance: {
+        marginHorizontal: rpx(24),
+        gap: rpx(12),
+    },
+});

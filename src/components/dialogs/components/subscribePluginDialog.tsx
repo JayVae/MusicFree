@@ -9,6 +9,7 @@ import useColors from "@/hooks/useColors";
 import { useI18N } from "@/core/i18n";
 
 interface ISubscribeItem {
+    id: string;
     name: string;
     url: string;
 }
@@ -98,6 +99,7 @@ export default function SubscribePluginDialog(
                         onPress() {
                             onSubmit(
                                 {
+                                    id: subscribeItem?.id ?? "",
                                     name,
                                     url,
                                 },

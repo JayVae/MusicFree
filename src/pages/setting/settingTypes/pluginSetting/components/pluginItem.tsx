@@ -25,9 +25,13 @@ import { IIconName } from "@/components/base/icon.tsx";
 import { useI18N } from "@/core/i18n";
 import IconButton from "@/components/base/iconButton";
 import useRerender from "@/hooks/useRerender";
+import { usePluginSubscriptionRecord } from "@/core/pluginManager/subscription";
 
 interface IPluginItemProps {
     plugin: Plugin;
+    duplicateCount?: number;
+    duplicateIndex?: number;
+    duplicateSourceGroup?: boolean;
 }
 
 interface IOption {
@@ -38,7 +42,7 @@ interface IOption {
 }
 
 function _PluginItem(props: IPluginItemProps) {
-    const { plugin } = props;
+    const { plugin, duplicateCount, duplicateIndex, duplicateSourceGroup } = props;
     const colors = useColors();
     const enabled = usePluginEnabled(plugin);
     const health = usePluginHealth(plugin.name);
@@ -47,6 +51,7 @@ function _PluginItem(props: IPluginItemProps) {
     const rerender = useRerender();
 
     const alternativePluginName = pluginManager.getAlternativePluginName(plugin);
+    const subscriptionRecord = usePluginSubscriptionRecord(plugin.hash);
 
     const options: IOption[] = [
         {
@@ -276,6 +281,24 @@ function _PluginItem(props: IPluginItemProps) {
                         ) : null
                     }
                     {
+                        duplicateCount && duplicateCount > 1 ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.duplicateGroup", {
+                                index: duplicateIndex ?? 1,
+                                count: duplicateCount,
+                            })} />
+                        ) : null
+                    }
+                    {
+                        duplicateSourceGroup ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.duplicateSource")} />
+                        ) : null
+                    }
+                    {
+                        subscriptionRecord?.missingFromSubscription ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.subscriptionMissing")} />
+                        ) : null
+                    }
+                    {
                         plugin.state === PluginState.Error ? (
                             <Tag tagName={t("pluginSetting.pluginItem.health.parseError")} />
                         ) : null
@@ -315,6 +338,16 @@ function _PluginItem(props: IPluginItemProps) {
                     </ThemeText>
                 ) : null}
             </View>
+            {subscriptionRecord ? (
+                <View style={styles.subscriptionDescription}>
+                    <ThemeText fontSize="subTitle" fontColor="textSecondary" numberOfLines={1}>
+                        {t("pluginSetting.pluginItem.subscriptionSource", {
+                            name: subscriptionRecord.pluginName,
+                            url: subscriptionRecord.sourceUrl,
+                        })}
+                    </ThemeText>
+                </View>
+            ) : null}
             {alternativePluginName ? <View style={styles.alternativePluginDescription}>
                 <ThemeText fontSize="subTitle" fontColor="textSecondary">
                     {t("pluginSetting.pluginItem.alternativePlugin", {
@@ -426,6 +459,10 @@ const styles = StyleSheet.create({
     healthDescription: {
         marginHorizontal: rpx(16),
         marginBottom: rpx(24),
+    },
+    subscriptionDescription: {
+        marginHorizontal: rpx(16),
+        marginBottom: rpx(16),
     },
     alternativePluginDescription: {
         marginHorizontal: rpx(16),

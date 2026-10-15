@@ -210,6 +210,35 @@ export interface ILanguageData {
     "pluginSetting.fabOptions.updateSubscription": string; // 更新订阅
     "pluginSetting.failReason": string; // 失败原因
     "pluginSetting.pluginInstallFailedDialogContent": string; // 插件安装失败对话框内容
+    "pluginSetting.pluginItem.duplicateGroup": string; // 同名插件分组
+    "pluginSetting.pluginItem.duplicateSource": string; // 疑似重复音源
+    "pluginSetting.pluginItem.subscriptionMissing": string; // 订阅中已不存在
+    "pluginSetting.pluginItem.subscriptionSource": string; // 订阅来源
+    "pluginSetting.section.overview": string; // 概览
+    "pluginSetting.section.installed": string; // 已安装插件
+    "pluginSetting.section.subscription": string; // 订阅管理
+    "pluginSetting.section.sort": string; // 插件排序
+    "pluginSetting.section.maintenance": string; // 维护操作
+    "pluginSetting.stat.installed": string; // 已安装
+    "pluginSetting.stat.subscriptions": string; // 订阅
+    "pluginSetting.stat.archived": string; // 已归档
+    "pluginSetting.subscription.manage": string; // 管理订阅
+    "pluginSetting.subscription.manageTip": string; // 管理订阅提示
+    "pluginSetting.subscription.lastUpdated": string; // 最近更新
+    "pluginSetting.subscription.missingCount": string; // 订阅消失数量
+    "pluginSetting.subscription.pluginCount": string; // 订阅插件数量
+    "pluginSetting.subscription.pluginCountUnknown": string; // 未更新订阅
+    "pluginSetting.subscription.deleteTitle": string; // 删除订阅标题
+    "pluginSetting.subscription.deleteContent": string; // 删除订阅确认
+    "pluginSetting.subscription.deleteContentWithPlugins": string; // 删除订阅和关联插件确认
+    "pluginSetting.subscription.deleteWithPlugins": string; // 删除订阅和插件
+    "pluginSetting.subscription.deleteKeepPlugins": string; // 仅删除订阅
+    "pluginSetting.sort.manage": string; // 调整插件顺序
+    "pluginSetting.sort.manageTip": string; // 调整插件顺序提示
+    "toast.updateSubscriptionSuccess": string; // 订阅更新成功
+    "toast.subscriptionAlreadyExists": string; // 订阅地址已存在
+    "toast.updateSubscriptionFailed": string; // 订阅更新失败
+    "toast.partialSubscriptionUpdateFailed": string; // 部分订阅更新失败
     "pluginSetting.pluginUpdateFailedDialogContent": string; // 插件更新失败对话框内容
 
     // 提示消息相关 - 插件操作

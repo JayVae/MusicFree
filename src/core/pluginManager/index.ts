@@ -24,9 +24,21 @@ import pluginMeta from "./meta";
 import {
     clearAllPluginHealth,
     isPluginAvailableForService,
+    markPluginArchived,
     preparePluginHealthForLaunch,
     removePluginHealth,
 } from "./health";
+import {
+    getActiveSubscriptionRecords,
+    markPluginArchivedAsDuplicate,
+    markPluginUninstalled,
+    markSubscriptionRecordsUninstalled,
+    markSubscriptionSnapshot,
+    parseSubscriptionConfig,
+    recordSubscriptionInstall,
+    removeSubscriptionData,
+    updateSubscriptionInfo,
+} from "./subscription";
 import { localFilePlugin, Plugin, PluginState } from "./plugin";
 import i18n from "../i18n";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
@@ -45,6 +57,35 @@ const ee = new EventEmitter<{
 
 class PluginManager implements IPluginManager, IInjectable {
     private appConfigService!: IAppConfig;
+    private installQueue: Promise<unknown> = Promise.resolve();
+    private subscriptionUpdateQueue: Promise<unknown> = Promise.resolve();
+
+    private enqueueInstall<T extends IInstallPluginResult>(
+        task: () => Promise<T>,
+    ): Promise<T> {
+        const queuedTask = this.installQueue.then(task, task);
+        this.installQueue = queuedTask.then(
+            () => undefined,
+            () => undefined,
+        );
+        return queuedTask;
+    }
+
+    private recordSubscriptionInstall(
+        plugin: Plugin,
+        sourceUrl: string,
+        config?: IInstallPluginConfig,
+        archivedAsDuplicate?: boolean,
+    ) {
+        recordSubscriptionInstall({
+            subscriptionId: config?.subscriptionId,
+            pluginHash: plugin.hash,
+            pluginName: plugin.name,
+            sourceUrl,
+            installedVersion: plugin.instance.version,
+            archivedAsDuplicate,
+        });
+    }
 
     injectDependencies(config: IAppConfig): void {
         this.appConfigService = config;
@@ -187,7 +228,18 @@ class PluginManager implements IPluginManager, IInjectable {
      * @param config.useExpoFs - 为true时使用Expo文件系统代替React Native的文件系统
      * @returns 安装结果，包含成功状态和相关信息
      */
-    async installPluginFromLocalFile(
+    installPluginFromLocalFile(
+        pluginPath: string,
+        config?: IInstallPluginConfig & {
+            useExpoFs?: boolean;
+        },
+    ): Promise<IInstallPluginResult> {
+        return this.enqueueInstall(() =>
+            this.doInstallPluginFromLocalFile(pluginPath, config)
+        );
+    }
+
+    private async doInstallPluginFromLocalFile(
         pluginPath: string,
         config?: IInstallPluginConfig & {
             useExpoFs?: boolean;
@@ -276,7 +328,14 @@ class PluginManager implements IPluginManager, IInjectable {
      * @param config.notCheckVersion - 为true时跳过版本检查
      * @returns 安装结果，包含成功状态和相关信息
      */
-    async installPluginFromUrl(
+    installPluginFromUrl(
+        url: string,
+        config?: IInstallPluginConfig,
+    ): Promise<IInstallPluginResult> {
+        return this.enqueueInstall(() => this.doInstallPluginFromUrl(url, config));
+    }
+
+    private async doInstallPluginFromUrl(
         url: string,
         config?: IInstallPluginConfig,
     ): Promise<IInstallPluginResult> {
@@ -297,7 +356,8 @@ class PluginManager implements IPluginManager, IInjectable {
                     p => p.hash === plugin.hash,
                 );
                 if (pluginIndex !== -1) {
-                    // 静默忽略
+                    // 内容 hash 相同，唯一保留一份，同时补充订阅来源关系
+                    this.recordSubscriptionInstall(plugin, url, config);
                     return {
                         success: true,
                         message: "插件已安装",
@@ -306,25 +366,65 @@ class PluginManager implements IPluginManager, IInjectable {
                         pluginUrl: url,
                     };
                 }
+                const duplicateSourcePlugin = allPlugins.find(
+                    p =>
+                        p.hash !== plugin.hash &&
+                        p.name !== plugin.name &&
+                        !!plugin.instance.srcUrl &&
+                        p.instance.srcUrl === plugin.instance.srcUrl,
+                );
+                if (duplicateSourcePlugin && plugin.hash !== "") {
+                    // 改名或换名后的重复音源默认归档，避免同时参与搜索和换源。
+                    const fn = nanoid();
+                    const archivePath = `${pathConst.pluginPath}${fn}.js`;
+                    await writeFile(archivePath, funcCode, "utf8");
+                    plugin.path = archivePath;
+                    allPlugins = allPlugins.concat(plugin);
+                    this.setPlugins(allPlugins);
+                    markPluginArchived(plugin.name, plugin.hash);
+                    this.recordSubscriptionInstall(plugin, url, config, true);
+                    return {
+                        success: true,
+                        message: "重复来源插件已归档",
+                        pluginName: plugin.name,
+                        pluginHash: plugin.hash,
+                        pluginUrl: url,
+                    };
+                }
                 const oldVersionPlugin = allPlugins.find(
                     p => p.name === plugin.name,
                 );
-                if (oldVersionPlugin && !config?.notCheckVersion) {
-                    if (
-                        compare(
-                            oldVersionPlugin.instance.version ?? "",
-                            plugin.instance.version ?? "",
-                            ">",
-                        )
-                    ) {
+                const isOlderVersion = !!oldVersionPlugin &&
+                    compare(
+                        oldVersionPlugin.instance.version ?? "",
+                        plugin.instance.version ?? "",
+                        ">",
+                    );
+                if (oldVersionPlugin && isOlderVersion) {
+                    // 低版本内容不抢占运行中的同名插件，但保留为归档插件以便用户清理。
+                    if (plugin.hash !== "") {
+                        markPluginArchivedAsDuplicate({
+                            subscriptionId: config?.subscriptionId,
+                            pluginHash: plugin.hash,
+                            pluginName: plugin.name,
+                            sourceUrl: url,
+                            installedVersion: plugin.instance.version,
+                        });
                         return {
-                            success: false,
-                            message: "已安装更新版本的插件",
+                            success: true,
+                            message: "低版本插件已归档",
                             pluginName: plugin.name,
                             pluginHash: plugin.hash,
                             pluginUrl: url,
                         };
                     }
+                    return {
+                        success: false,
+                        message: "已安装更新版本的插件",
+                        pluginName: plugin.name,
+                        pluginHash: plugin.hash,
+                        pluginUrl: url,
+                    };
                 }
 
                 if (plugin.hash !== "") {
@@ -342,6 +442,7 @@ class PluginManager implements IPluginManager, IInjectable {
                         } catch {}
                     }
                     this.setPlugins(allPlugins);
+                    this.recordSubscriptionInstall(plugin, url, config);
                     return {
                         success: true,
                         pluginName: plugin.name,
@@ -391,7 +492,9 @@ class PluginManager implements IPluginManager, IInjectable {
         if (targetIndex !== -1) {
             try {
                 const pluginName = plugins[targetIndex].name;
+                const pluginHash = plugins[targetIndex].hash;
                 await unlink(plugins[targetIndex].path);
+                markPluginUninstalled(pluginHash);
                 plugins = plugins.filter(_ => _.hash !== hash);
                 this.setPlugins(plugins);
                 // 防止其他重名
@@ -408,8 +511,9 @@ class PluginManager implements IPluginManager, IInjectable {
      * 同时清理媒体额外数据并删除插件文件
      */
     async uninstallAllPlugins() {
+        const allPlugins = [...this.getPlugins()];
         await Promise.all(
-            this.getPlugins().map(async plugin => {
+            allPlugins.map(async plugin => {
                 try {
                     const pluginName = plugin.name;
                     await unlink(plugin.path);
@@ -417,6 +521,7 @@ class PluginManager implements IPluginManager, IInjectable {
                 } catch (e) {}
             }),
         );
+        allPlugins.forEach(plugin => markPluginUninstalled(plugin.hash));
         this.setPlugins([]);
         clearAllPluginHealth();
 
@@ -449,6 +554,138 @@ class PluginManager implements IPluginManager, IInjectable {
                 throw e;
             }
         }
+    }
+
+    private async fetchSubscriptionPluginUrls(url: string): Promise<string[]> {
+        if (!url.trim().toLowerCase().endsWith(".json")) {
+            return [url];
+        }
+        const subscriptionJson = (
+            await axios.get(url, {
+                headers: {
+                    "Cache-Control": "no-cache",
+                    Pragma: "no-cache",
+                    Expires: "0",
+                },
+            })
+        ).data;
+        const pluginUrls = (subscriptionJson?.plugins ?? [])
+            .map((it: any) => it?.url)
+            .filter((it: unknown): it is string => typeof it === "string");
+        if (!pluginUrls.length) {
+            throw new Error("订阅中没有插件");
+        }
+        return pluginUrls;
+    }
+
+    updateAllSubscriptions(): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }> {
+        const updateTask = this.subscriptionUpdateQueue.then(
+            () => this.doUpdateAllSubscriptions(),
+            () => this.doUpdateAllSubscriptions(),
+        );
+        this.subscriptionUpdateQueue = updateTask.then(
+            () => undefined,
+            () => undefined,
+        );
+        return updateTask;
+    }
+
+    private async doUpdateAllSubscriptions(): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }> {
+        const subscriptions = parseSubscriptionConfig(
+            this.appConfigService.getConfig("plugin.subscribeUrl"),
+        );
+        const successResults: IInstallPluginResult[] = [];
+        const failResults: IInstallPluginResult[] = [];
+
+        for (const subscription of subscriptions) {
+            try {
+                const pluginUrls = await this.fetchSubscriptionPluginUrls(
+                    subscription.url,
+                );
+                const expectedHashes = new Set<string>();
+                const expectedUrls = new Set<string>(pluginUrls);
+                for (const pluginUrl of pluginUrls) {
+                    expectedUrls.add(pluginUrl);
+                    const result = await this.installPluginFromUrl(pluginUrl, {
+                        notCheckVersion: this.appConfigService.getConfig(
+                            "basic.notCheckPluginVersion",
+                        ),
+                        subscriptionId: subscription.id,
+                        subscriptionUrl: subscription.url,
+                    });
+                    if (result.success) {
+                        if (result.pluginHash) {
+                            expectedHashes.add(result.pluginHash);
+                        }
+                        successResults.push(result);
+                    } else {
+                        failResults.push(result);
+                    }
+                }
+                markSubscriptionSnapshot(
+                    subscription.id,
+                    expectedHashes,
+                    expectedUrls,
+                );
+                updateSubscriptionInfo(subscription.id, {
+                    lastUpdatedAt: Date.now(),
+                    pluginCount: pluginUrls.length,
+                });
+            } catch (e: any) {
+                failResults.push({
+                    success: false,
+                    message: e?.message ?? "",
+                    pluginUrl: subscription.url,
+                });
+            }
+        }
+        return { successResults, failResults };
+    }
+
+    getSubscriptionAssociatedPlugins(subscriptionId: string) {
+        const records = getActiveSubscriptionRecords(subscriptionId);
+        if (!records.length) {
+            return [];
+        }
+        return this.getPlugins().filter(plugin => {
+            const pluginRecords = records.filter(record =>
+                record.pluginHash === plugin.hash ||
+                record.pluginName === plugin.name
+            );
+            if (!pluginRecords.length) {
+                return false;
+            }
+            const subscriptionIds = new Set(
+                getActiveSubscriptionRecords()
+                    .filter(record =>
+                        record.pluginHash === plugin.hash ||
+                        record.pluginName === plugin.name
+                    )
+                    .map(record => record.subscriptionId),
+            );
+            return subscriptionIds.size === 1 &&
+                subscriptionIds.has(subscriptionId);
+        });
+    }
+
+    async deleteSubscription(subscriptionId: string, deletePlugins: boolean) {
+        const associatedPlugins = this.getSubscriptionAssociatedPlugins(
+            subscriptionId,
+        );
+        if (deletePlugins) {
+            for (const plugin of associatedPlugins) {
+                await this.uninstallPlugin(plugin.hash);
+            }
+        } else {
+            markSubscriptionRecordsUninstalled(subscriptionId);
+        }
+        removeSubscriptionData(subscriptionId);
     }
 
     /**

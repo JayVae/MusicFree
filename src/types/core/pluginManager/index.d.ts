@@ -5,6 +5,8 @@ type Plugin = any; // Placeholder for the actual Plugin type
  */
 export interface IInstallPluginConfig {
     notCheckVersion?: boolean;
+    subscriptionId?: string;
+    subscriptionUrl?: string;
 }
 
 /**
@@ -74,6 +76,18 @@ export interface IPluginManager {
      * @throws 如果插件没有源URL或更新失败时抛出错误
      */
     updatePlugin(plugin: Plugin): Promise<void>;
+
+    updateAllSubscriptions(): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }>;
+
+    getSubscriptionAssociatedPlugins(subscriptionId: string): Plugin[];
+
+    deleteSubscription(
+        subscriptionId: string,
+        deletePlugins: boolean,
+    ): Promise<void>;
 
     /**
      * 通过媒体项的平台信息获取对应的插件
