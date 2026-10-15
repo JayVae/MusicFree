@@ -38,16 +38,20 @@ export default function Operations() {
                 navigate(ROUTE_PATH.LOCAL);
             },
         },
+        {
+            iconName: "arrow-down-tray",
+            title: t("common.download"),
+            action() {
+                navigate(ROUTE_PATH.DOWNLOADING);
+            },
+        },
     ] as const;
 
     return (
         <View style={styles.container}>
-            {actionButtons.map((action, index) => (
+            {actionButtons.map(action => (
                 <ActionButton
-                    style={[
-                        styles.actionButtonStyle,
-                        index % 4 ? styles.actionMarginLeft : null,
-                    ]}
+                    style={styles.actionButtonStyle}
                     key={action.title}
                     {...action}
                 />
@@ -62,14 +66,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: rpx(24),
         marginVertical: rpx(32),
         flexDirection: "row",
-        flexWrap: "nowrap",
+        gap: rpx(18),
     },
     actionButtonStyle: {
-        width: rpx(157.5),
+        flex: 1,
+        minWidth: 0,
+        width: "auto",
         height: rpx(160),
         borderRadius: rpx(18),
-    },
-    actionMarginLeft: {
-        marginLeft: rpx(24),
     },
 });

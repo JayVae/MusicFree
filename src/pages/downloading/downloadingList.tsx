@@ -192,12 +192,15 @@ function HistoryDownloadItem(props: {
     return (
         <ListItem
             withHorizontalPadding
-            heightType="big">
+            heightType="none"
+            style={style.historyItem}>
             <ListItem.Content
+                containerStyle={style.historyContent}
                 title={record.musicItem.title}
                 description={description}
             />
             <TextButton
+                style={style.historyAction}
                 fontColor="textSecondary"
                 onPress={() => removeDownloadRecord(record.key)}>
                 {t("common.delete")}
@@ -327,5 +330,21 @@ const style = StyleSheet.create({
     },
     descriptionWrapper: {
         gap: rpx(6),
+    },
+    historyItem: {
+        minHeight: rpx(132),
+        alignItems: "center",
+        paddingVertical: rpx(16),
+    },
+    historyContent: {
+        height: "auto",
+        minHeight: rpx(100),
+        justifyContent: "center",
+    },
+    historyAction: {
+        flexShrink: 0,
+        marginLeft: rpx(16),
+        paddingVertical: rpx(16),
+        paddingHorizontal: rpx(12),
     },
 });
