@@ -6,9 +6,13 @@ import type { IPluginManager } from "@/types/core/pluginManager";
 import type { IAppConfig } from "@/types/core/config";
 import type { Plugin } from "./pluginManager/plugin";
 import { trace } from "@/utils/log";
+import {
+    isPluginSuppressedByEmptySearch,
+    recordEmptySearchResult,
+    recordNonEmptySearchResult,
+} from "./playbackSource";
 
-/** R1/R2 内置保守值：最多 5 个可用候选插件，总预算 15 秒。 */
-export const PLAY_SOURCE_FALLBACK_MAX_CANDIDATES = 5;
+/** R7：换源只受 15 秒总预算、候选耗尽和切歌控制。 */
 export const PLAY_SOURCE_FALLBACK_TIMEOUT_MS = 15_000;
 const PLAY_SOURCE_FALLBACK_DURATION_TOLERANCE_SECONDS = 3;
 
@@ -29,6 +33,17 @@ interface IFallbackCacheEntry {
     candidateMusicItem: IMusic.IMusicItemBase;
     resolvedByPluginName: string;
     resolvedAt: number;
+}
+
+export interface IMediaSourceResolverOptions {
+    /** 产生当前队列的歌单，仅用于推导 R7 来源偏好。 */
+    sheetId?: string;
+    /** 批量操作指定的优先插件；为空时使用自动推荐。 */
+    preferredPluginName?: string;
+    /** 只尝试指定插件，用于歌单批量换源的明确目标。 */
+    preferredOnly?: boolean;
+    onResolved?: (resolved: IResolvedFallbackSource) => void;
+    onPreferredPluginFailure?: (pluginName: string) => void;
 }
 
 const fallbackCacheStore = getOrCreateMMKV("media-source.fallback");
@@ -137,16 +152,19 @@ export class MediaSourceFallbackResolver {
     private failedSourceUrls = new Set<string>();
     private deadline: number | null = null;
 
+    private readonly resolverOptions: IMediaSourceResolverOptions;
     private candidatePluginNames: string[] = [];
 
     constructor(
         musicItem: IMusic.IMusicItemBase,
         pluginManager: IPluginManager,
         config: IAppConfig,
+        options: IMediaSourceResolverOptions = {},
     ) {
         this.musicItem = musicItem;
         this.pluginManagerService = pluginManager;
         this.configService = config;
+        this.resolverOptions = options;
         this.qualityOrder = getQualityOrder(
             config.getConfig("basic.defaultPlayQuality") ?? "standard",
             config.getConfig("basic.playQualityOrder") ?? "asc",
@@ -186,7 +204,12 @@ export class MediaSourceFallbackResolver {
         }
 
         const cached = getMediaSourceFallbackCache(this.musicItem);
-        if (cached?.source.url && !this.failedSourceUrls.has(cached.source.url)) {
+        if (
+            cached?.source.url &&
+            !this.failedSourceUrls.has(cached.source.url) &&
+            (!this.resolverOptions.preferredOnly || cached.resolvedByPluginName === this.resolverOptions.preferredPluginName)
+        ) {
+            this.resolverOptions.onResolved?.(cached);
             return cached;
         }
 
@@ -200,7 +223,6 @@ export class MediaSourceFallbackResolver {
 
         while (
             this.candidateIndex < this.candidatePlugins.length &&
-            this.attemptedPluginNames.size < PLAY_SOURCE_FALLBACK_MAX_CANDIDATES &&
             !this.isExpired() &&
             !abortFunction?.()
         ) {
@@ -224,6 +246,13 @@ export class MediaSourceFallbackResolver {
                 );
                 if (this.isExpired() || abortFunction?.()) {
                     return null;
+                }
+
+                if ((results?.data ?? []).length === 0) {
+                    recordEmptySearchResult(plugin.name);
+                    this.reportPreferredPluginFailure(plugin.name);
+                } else {
+                    recordNonEmptySearchResult(plugin.name);
                 }
 
                 const matchedItems = (results?.data ?? [])
@@ -256,6 +285,10 @@ export class MediaSourceFallbackResolver {
                             candidate: matchedItem,
                             duplicateSource: !!source?.url && this.failedSourceUrls.has(source.url),
                         });
+                        this.reportPreferredPluginFailure(plugin.name);
+                        if (this.isExpired() || abortFunction?.()) {
+                            return null;
+                        }
                         continue;
                     }
 
@@ -274,6 +307,7 @@ export class MediaSourceFallbackResolver {
                     };
                     setMediaSourceFallbackCache(resolved);
                     trace("换源候选取源成功", resolved);
+                    this.resolverOptions.onResolved?.(resolved);
                     return resolved;
                 }
             } catch (error) {
@@ -281,6 +315,7 @@ export class MediaSourceFallbackResolver {
                     plugin: plugin.name,
                     error,
                 });
+                this.reportPreferredPluginFailure(plugin.name);
                 // 单个插件失败不阻断后续候选；插件健康统计由 PluginMethodsWrapper 记录。
             }
         }
@@ -290,6 +325,12 @@ export class MediaSourceFallbackResolver {
 
     private isExpired() {
         return this.deadline !== null && Date.now() >= this.deadline;
+    }
+
+    private reportPreferredPluginFailure(pluginName: string) {
+        if (pluginName === this.resolverOptions.preferredPluginName) {
+            this.resolverOptions.onPreferredPluginFailure?.(pluginName);
+        }
     }
 
     /**
@@ -303,10 +344,16 @@ export class MediaSourceFallbackResolver {
             ? this.pluginManagerService.getAlternativePlugin(originalPlugin)
             : null;
 
-        const orderedPlugins = [
-            alternativePlugin,
-            ...this.pluginManagerService.getSortedSearchablePlugins("music"),
-        ];
+        const preferredPlugin = this.resolverOptions.preferredPluginName
+            ? this.pluginManagerService.getByName(this.resolverOptions.preferredPluginName)
+            : null;
+        const orderedPlugins = this.resolverOptions.preferredOnly
+            ? [preferredPlugin]
+            : [
+                preferredPlugin,
+                alternativePlugin,
+                ...this.pluginManagerService.getSortedSearchablePlugins("music"),
+            ];
 
         const uniquePlugins = new Map<string, Plugin>();
         for (const plugin of orderedPlugins) {
@@ -316,6 +363,15 @@ export class MediaSourceFallbackResolver {
             if (plugin.name === this.musicItem.platform) {
                 continue;
             }
+            const isPreferredPlugin = plugin.name === this.resolverOptions.preferredPluginName;
+            if (
+                isPreferredPlugin &&
+                (!this.pluginManagerService.isPluginEnabled(plugin) ||
+                    !isPluginAvailableForService(plugin.name) ||
+                    isPluginSuppressedByEmptySearch(plugin.name))
+            ) {
+                this.reportPreferredPluginFailure(plugin.name);
+            }
             if (!this.pluginManagerService.isPluginEnabled(plugin)) {
                 continue;
             }
@@ -323,6 +379,9 @@ export class MediaSourceFallbackResolver {
                 continue;
             }
             if (!plugin.supportedMethods.has("search")) {
+                continue;
+            }
+            if (isPluginSuppressedByEmptySearch(plugin.name)) {
                 continue;
             }
             uniquePlugins.set(plugin.name, plugin);

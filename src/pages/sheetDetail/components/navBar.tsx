@@ -3,14 +3,21 @@ import { showDialog } from "@/components/dialogs/useDialog";
 import { showPanel } from "@/components/panels/usePanel.ts";
 import { SortType } from "@/constants/commonConst.ts";
 import { useI18N } from "@/core/i18n";
+import Config from "@/core/appConfig";
+import pluginManager from "@/core/pluginManager";
+import {
+    findBatchSourceCandidates,
+    getBatchSourceTargetPlugins,
+} from "@/core/mediaSourceBatch";
 import MusicSheet, { useSheetItem } from "@/core/musicSheet";
 import { ROUTE_PATH, useParams } from "@/core/router";
 import { default as Toast, default as toast } from "@/utils/toast";
 import { useNavigation } from "@react-navigation/native";
-import React from "react";
+import React, { useRef } from "react";
 
 export default function () {
     const navigation = useNavigation<any>();
+    const batchFilterAbortRef = useRef(false);
     const { id = "favorite" } = useParams<"local-sheet-detail">();
     const musicSheet = useSheetItem(id);
     const { t } = useI18N();
@@ -35,6 +42,67 @@ export default function () {
                             navigation.navigate(ROUTE_PATH.MUSIC_LIST_EDITOR, {
                                 musicList: musicSheet.musicList,
                                 musicSheet: musicSheet,
+                            });
+                        },
+                    },
+                    {
+                        icon: "arrow-path",
+                        title: t("sheetDetail.batchChangeSource"),
+                        onPress() {
+                            batchFilterAbortRef.current = false;
+                            if (!musicSheet?.musicList?.length) {
+                                Toast.success(t("dialog.batchSource.noAffected"));
+                                return;
+                            }
+                            showDialog("LoadingDialog", {
+                                title: t("sheetDetail.batchChangeSource"),
+                                loadingText: t("dialog.batchSource.filtering"),
+                                async task() {
+                                    return findBatchSourceCandidates({
+                                        musicItems: musicSheet.musicList,
+                                        pluginManagerService: pluginManager,
+                                        configService: Config,
+                                        shouldAbort: () => batchFilterAbortRef.current,
+                                    });
+                                },
+                                onCancel(hideLoadingDialog) {
+                                    batchFilterAbortRef.current = true;
+                                    hideLoadingDialog();
+                                },
+                                onResolve(affectedMusicItems, hideLoadingDialog) {
+                                    hideLoadingDialog();
+                                    if (!affectedMusicItems.length) {
+                                        Toast.success(t("dialog.batchSource.noAffected"));
+                                        return;
+                                    }
+                                    const targetPlugins = getBatchSourceTargetPlugins(pluginManager);
+                                    showDialog("RadioDialog", {
+                                        title: t("sheetDetail.batchChangeSource"),
+                                        tip: t("dialog.batchSource.affectedCount", {
+                                            count: affectedMusicItems.length,
+                                        }),
+                                        content: [
+                                            {
+                                                value: "__auto__",
+                                                label: t("dialog.batchSource.autoSelect"),
+                                            },
+                                            ...targetPlugins.map(plugin => ({
+                                                value: plugin.name,
+                                                label: plugin.name,
+                                            })),
+                                        ],
+                                        defaultSelected: "__auto__",
+                                        onOk(value) {
+                                            showDialog("BatchSourceDialog", {
+                                                title: t("sheetDetail.batchChangeSource"),
+                                                affectedMusicItems,
+                                                sheetId: id,
+                                                targetPluginName:
+                                                    value === "__auto__" ? undefined : String(value),
+                                            });
+                                        },
+                                    });
+                                },
                             });
                         },
                     },

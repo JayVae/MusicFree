@@ -53,6 +53,7 @@ export default function SheetMusicList(props: IMusicListProps) {
                                 TrackPlayer.playWithReplacePlayList(
                                     musicItem,
                                     currentMusicList ?? [musicItem],
+                                    sheetInfo ? { sheetId: sheetInfo.id } : undefined,
                                 );
                             }
                         }}

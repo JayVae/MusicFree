@@ -36,6 +36,12 @@ import type { IAppConfig } from "@/types/core/config";
 import type { IMusicHistory } from "@/types/core/musicHistory";
 import { ITrackPlayer } from "@/types/core/trackPlayer/index";
 import { MediaSourceFallbackResolver } from "../mediaSourceResolver";
+import {
+    clearPlaylistSourcePreference,
+    getPlaylistSourcePreference,
+    recordPlaylistSourceSuccess,
+    setTemporarySourcePluginName,
+} from "../playbackSource";
 import { IPluginManager } from "@/types/core/pluginManager";
 import { ImgAsset } from "@/constants/assetsConst";
 import { resolveImportedAssetOrPath } from "@/utils/fileUtils";
@@ -70,6 +76,7 @@ class TrackPlayer extends EventEmitter<{
 
     // 当前歌曲的集中换源会话，覆盖取源失败和底层播放失败
     private sourceFallbackResolver: MediaSourceFallbackResolver | null = null;
+    private playSourceContext: { sheetId?: string } | null = null;
 
 
     private static maxMusicQueueLength = 10000;
@@ -120,6 +127,10 @@ class TrackPlayer extends EventEmitter<{
         return getDefaultStore().get(playListAtom);
     }
 
+
+    setPlaySourceContext(sourceContext?: { sheetId?: string } | null): void {
+        this.playSourceContext = sourceContext ?? null;
+    }
 
     injectDependencies(configService: IAppConfig, musicHistoryService: IMusicHistory, pluginManager: IPluginManager): void {
         this.configService = configService;
@@ -466,12 +477,19 @@ class TrackPlayer extends EventEmitter<{
             }
 
             // 3. 如果没有在播放列表中，添加到队尾；同时更新列表状态
+            // 外部队列歌曲不应继承歌单来源偏好
+            if (!this.isInPlayList(musicItem)) {
+                this.setPlaySourceContext(null);
+            }
             const inPlayList = this.isInPlayList(musicItem);
             if (!inPlayList) {
                 this.add(musicItem);
             }
 
-            // 4. 更新列表状态和当前音乐
+            // 4. 更新列表状态和当前音乐；切歌时清理临时来源展示
+            if (!this.isCurrentMusic(musicItem)) {
+                setTemporarySourcePluginName(null);
+            }
             this.setCurrentMusic(musicItem);
             await ReactNativeTrackPlayer.setQueue([{
                 ...musicItem,
@@ -492,13 +510,7 @@ class TrackPlayer extends EventEmitter<{
             const shouldFallback = this.configService.getConfig(
                 "basic.tryChangeSourceWhenPlayFail",
             ) ?? true;
-            this.sourceFallbackResolver = shouldFallback
-                ? new MediaSourceFallbackResolver(
-                    musicItem,
-                    this.pluginManagerService,
-                    this.configService,
-                )
-                : null;
+            this.sourceFallbackResolver = this.createSourceFallbackResolver(musicItem);
 
             // 5.3 插件返回音源
             let source: IPlugin.IMediaSourceResult | null = null;
@@ -512,6 +524,7 @@ class TrackPlayer extends EventEmitter<{
                     // 5.3.1 获取到真实源
                     if (source?.url) {
                         this.setQuality(quality);
+                        setTemporarySourcePluginName(null);
                         break;
                     }
                     source = null;
@@ -637,6 +650,7 @@ class TrackPlayer extends EventEmitter<{
 
     // 清空播放队列
     async clearPlayList(): Promise<void> {
+        this.setPlaySourceContext(null);
         this.setPlayList([]);
         this.setCurrentMusic(null);
 
@@ -688,6 +702,7 @@ class TrackPlayer extends EventEmitter<{
                 throw new Error(PlayFailReason.INVALID_SOURCE);
             }
             if (this.isCurrentMusic(musicItem)) {
+                setTemporarySourcePluginName(null);
                 const playingState = (
                     await ReactNativeTrackPlayer.getPlaybackState()
                 ).state;
@@ -709,7 +724,9 @@ class TrackPlayer extends EventEmitter<{
     async playWithReplacePlayList(
         musicItem: IMusic.IMusicItem,
         newPlayList: IMusic.IMusicItem[],
+        sourceContext?: { sheetId?: string },
     ): Promise<void> {
+        this.setPlaySourceContext(sourceContext);
         if (newPlayList.length !== 0) {
             const now = Date.now();
             if (newPlayList.length > TrackPlayer.maxMusicQueueLength) {
@@ -909,6 +926,43 @@ class TrackPlayer extends EventEmitter<{
     /**
      * R1/R2：底层播放失败后继续尝试集中换源解析器的下一个候选。
      */
+    private createSourceFallbackResolver(musicItem: IMusic.IMusicItemBase) {
+        const shouldFallback = this.configService.getConfig(
+            "basic.tryChangeSourceWhenPlayFail",
+        ) ?? true;
+        if (!shouldFallback) {
+            return null;
+        }
+
+        return new MediaSourceFallbackResolver(
+            musicItem,
+            this.pluginManagerService,
+            this.configService,
+            {
+                sheetId: this.playSourceContext?.sheetId,
+                preferredPluginName: getPlaylistSourcePreference(
+                    this.playSourceContext?.sheetId,
+                    musicItem.platform,
+                )?.pluginName,
+                onResolved: resolved => {
+                    setTemporarySourcePluginName(resolved.resolvedByPluginName);
+                    recordPlaylistSourceSuccess(
+                        this.playSourceContext?.sheetId,
+                        musicItem.platform,
+                        resolved.resolvedByPluginName,
+                    );
+                },
+                onPreferredPluginFailure: pluginName => {
+                    clearPlaylistSourcePreference(
+                        this.playSourceContext?.sheetId,
+                        musicItem.platform,
+                        pluginName,
+                    );
+                },
+            },
+        );
+    }
+
     private async handlePlaybackError(currentTrack?: Track | null) {
         const musicItem = this.currentMusic;
         const fallbackEnabled = this.configService.getConfig(
@@ -933,11 +987,11 @@ class TrackPlayer extends EventEmitter<{
         });
 
         if (!this.sourceFallbackResolver) {
-            this.sourceFallbackResolver = new MediaSourceFallbackResolver(
-                musicItem,
-                this.pluginManagerService,
-                this.configService,
-            );
+            this.sourceFallbackResolver = this.createSourceFallbackResolver(musicItem);
+        }
+        if (!this.sourceFallbackResolver) {
+            await this.handlePlayFail();
+            return;
         }
 
         if (!this.sourceFallbackResolver.reportFailedSource(currentTrack?.url)) {
@@ -956,6 +1010,12 @@ class TrackPlayer extends EventEmitter<{
             this.isCurrentMusic(musicItem)
         ) {
             trace("播放失败换源成功", fallbackSource);
+            setTemporarySourcePluginName(fallbackSource.resolvedByPluginName);
+            recordPlaylistSourceSuccess(
+                this.playSourceContext?.sheetId,
+                musicItem.platform,
+                fallbackSource.resolvedByPluginName,
+            );
             const track = this.mergeTrackSource(
                 musicItem,
                 fallbackSource.source,

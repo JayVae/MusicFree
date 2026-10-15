@@ -7,6 +7,7 @@ export interface ILanguageData {
     "common.theme": string; // 主题
     "common.other": string; // 其他
     "common.cancel": string; // 取消
+    "common.close": string; // 关闭
     "common.about": string; // 关于
     "common.batchEdit": string; // 批量编辑
     "common.selectAll": string; // 全选
@@ -138,6 +139,7 @@ export interface ILanguageData {
     "sheetDetail.editSheetInfo": string; // 编辑歌单信息
     "sheetDetail.batchEditMusic": string; // 批量编辑音乐
     "sheetDetail.sortMusic": string; // 排序音乐
+    "sheetDetail.batchChangeSource": string; // 批量临时换源
     "sheetDetail.sortMusicOption.byTitle": string; // 按标题排序
     "sheetDetail.sortMusicOption.byArtist": string; // 按艺术家排序
     "sheetDetail.sortMusicOption.byAlbum": string; // 按专辑排序
@@ -599,7 +601,22 @@ export interface ILanguageData {
     "repeatMode.SHUFFLE": string; // 随机播放
     "repeatMode.QUEUE": string; // 列表循环
     "repeatMode.SINGLE": string; // 单曲循环
+
+    // 播放来源连续性相关
+    "playback.temporarySource": string; // 临时来源
+    "dialog.batchSource.filtering": string; // 正在检查歌曲音源
+    "dialog.batchSource.affectedCount": string; // 预计影响数量
+    "dialog.batchSource.autoSelect": string; // 自动推荐
+    "dialog.batchSource.noAffected": string; // 没有需要临时换源的歌曲
+    "dialog.batchSource.summary": string; // 批量换源结果统计
+    "dialog.batchSource.status.pending": string; // 等待处理
+    "dialog.batchSource.status.success": string; // 成功
+    "dialog.batchSource.status.fail": string; // 失败
+    "dialog.batchSource.status.timeout": string; // 超时
+    "dialog.batchSource.status.current": string; // 当前播放跳过
+    "dialog.batchSource.status.skipped": string; // 已跳过
 }
+
 
 // 语言接口定义
 export interface ILanguage {
