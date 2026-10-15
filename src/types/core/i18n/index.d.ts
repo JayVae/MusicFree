@@ -159,6 +159,16 @@ export interface ILanguageData {
     "downloading.downloadStatus.downloadProgress": string; // 下载进度
     "downloading.downloadStatus.pending": string; // 等待中
     "downloading.downloadStatus.preparing": string; // 准备中
+    "downloading.filter.all": string; // 全部
+    "downloading.filter.active": string; // 进行中
+    "downloading.filter.success": string; // 成功
+    "downloading.filter.failed": string; // 失败
+    "downloading.history.clear": string; // 清空下载历史
+    "downloading.history.fileMissing": string; // 文件已不存在
+    "downloading.downloadFailReason.networkOffline": string; // 网络已断开
+    "downloading.downloadFailReason.notAllowInCellular": string; // 当前网络下不允许下载
+    "downloading.downloadFailReason.interrupted": string; // 下载已中断
+    "downloading.downloadFailReason.unknownWithDetail": string; // 未知错误详情
 
     // 艺术家详情相关
     "artistDetail.fansCount": string; // 粉丝数量
