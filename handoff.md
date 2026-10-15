@@ -1,29 +1,27 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-15
-当前状态：R3、R1/R2、R5 代码阶段均已收尾；下一阶段是 R4。
+当前状态：R3、R1/R2、R4、R5 代码阶段均已收尾；下一阶段是 R6。
 
 ## 1. 分支与提交
 
 当前收尾分支：
 
 ```text
-feat/0.6.2-plugin-subscription
+feat/0.6.2-download-history
 ```
 
-R5 关键提交：
+R4 关键提交：
 
 ```text
-b953a69 feat(plugin): add subscription source management
-d2f8534 fix(plugin): improve subscription management feedback
-19c35e1 fix(plugin): simplify subscription deletion and layout
-664553d fix(plugin): refine overview stats and subscription entry
+2e5285f feat(download): add download result history
+a1340ce fix(download): expose entry and refine history rows
 ```
 
 下一个需求从当前收尾分支创建：
 
 ```text
-feat/0.6.2-download-history
+feat/0.6.2-plugin-startup
 ```
 
 实施顺序保持：
@@ -32,43 +30,42 @@ feat/0.6.2-download-history
 R3 -> R1/R2 -> R5 -> R4 -> R6
 ```
 
-## 2. R5 收尾口径
+## 2. R4 收尾口径
 
-1. 订阅 URL 生成稳定 ID；插件来源映射保存在独立 MMKV store `plugin.subscription`。
-2. URL / 本地插件安装串行；订阅更新整体也串行。
-3. 相同名插件分组；相同 `srcUrl` 的改名插件标记疑似重复并默认归档。
-4. 订阅中消失的插件只标记可清理，不自动删除。
-5. 删除订阅固定删除关联插件，并同步从订阅配置中移除。
-6. 插件管理页分区：概览统计、订阅管理、折叠维护、已安装插件、排序。
-7. 订阅项直达详情；详情支持编辑、复制、单独更新、删除和只读插件列表。
-8. 订阅添加入口在插件管理页“订阅管理”分区首行。
-9. 已知延后：内置订阅分组、订阅内插件统一状态、本地 / 网络来源分组、启动懒加载彻底生效。
+1. 下载历史使用独立 MMKV store `download.history`，不进入备份 / 恢复。
+2. 全部状态合计保留最近 10 条；成功 / 失败 / 进行中均记录。
+3. 重启后 pending 记录标记为中断失败；不影响本地音乐入库逻辑。
+4. 下载页支持全部 / 进行中 / 成功 / 失败筛选和清空历史。
+5. 首页新增快捷「下载」入口；历史行自适应高度避免信息重叠。
+6. 第一版不做系统通知、前台服务、断点续传和失败重试。
 
-## 3. 下一阶段：R4
+## 3. 下一阶段：R6
 
-目标：下载结果历史，合计保留最近 10 条成功 / 失败记录。
+目标：插件启动加载与播放状态恢复优化。元数据先行、代码按需挂载，治理被动恢复引发的取源和歌词搜索。
 
 必须先读：
 
 ```text
-docs/fork-requirements.md 第 10 章 R4
-docs/decisions.md D21 / D23 / D31
+docs/fork-requirements.md 第 R6 章节
+docs/decisions.md D38 / D39 / D40 / D41
 ```
 
 第一版边界：
 
-1. 不新增运行时依赖。
-2. 不做系统通知、前台服务、断点续传。
-3. 不做失败记录手动 / 自动重试。
-4. 下载历史不进入备份 / 恢复。
-5. 不影响当前下载完成后的本地音乐入库逻辑。
+1. 启动只恢复插件元数据，不执行插件代码；首次服务调用时再挂载。
+2. 未开启启动自动播放时，不主动请求真实音源。
+3. 歌词自动搜索延迟到启动图隐藏后，并做单飞和缓存。
+4. 不新增运行时依赖。
+5. 不修改第三方插件源码；不做静态审计。
 
 建议核心文件：
 
 ```text
-src/core/downloader.ts
-src/core/downloadHistory.ts
-src/pages/downloading/downloadingList.tsx
+src/core/pluginManager/index.ts
+src/core/pluginManager/plugin.ts
+src/core/trackPlayer/index.ts
+src/core/lyricManager.ts
+src/entry/bootstrap/bootstrap.ts
 ```
 
 ## 4. 验证与约束
