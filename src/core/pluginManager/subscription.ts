@@ -233,22 +233,6 @@ export function markSubscriptionSnapshot(
     saveSubscriptionRecords(nextRecords);
 }
 
-export function markSubscriptionRecordsUninstalled(subscriptionId: string) {
-    const records = getSubscriptionRecords();
-    const nextRecords = { ...records };
-    const now = Date.now();
-    Object.keys(nextRecords).forEach(key => {
-        const record = nextRecords[key];
-        if (record.subscriptionId === subscriptionId && isRecordActive(record)) {
-            nextRecords[key] = {
-                ...record,
-                uninstalledAt: now,
-            };
-        }
-    });
-    saveSubscriptionRecords(nextRecords);
-}
-
 export function updateSubscriptionInfo(
     subscriptionId: string,
     info: Partial<Omit<ISubscriptionInfo, "subscriptionId">>,

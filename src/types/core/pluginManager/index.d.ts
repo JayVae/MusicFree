@@ -89,10 +89,7 @@ export interface IPluginManager {
 
     getSubscriptionAssociatedPlugins(subscriptionId: string): Plugin[];
 
-    deleteSubscription(
-        subscriptionId: string,
-        deletePlugins: boolean,
-    ): Promise<void>;
+    deleteSubscription(subscriptionId: string): Promise<void>;
 
     /**
      * 通过媒体项的平台信息获取对应的插件

@@ -33,7 +33,6 @@ import {
     ISubscriptionItem,
     markPluginArchivedAsDuplicate,
     markPluginUninstalled,
-    markSubscriptionRecordsUninstalled,
     markSubscriptionSnapshot,
     parseSubscriptionConfig,
     recordSubscriptionInstall,
@@ -708,18 +707,21 @@ class PluginManager implements IPluginManager, IInjectable {
         });
     }
 
-    async deleteSubscription(subscriptionId: string, deletePlugins: boolean) {
+    async deleteSubscription(subscriptionId: string) {
         const associatedPlugins = this.getSubscriptionAssociatedPlugins(
             subscriptionId,
         );
-        if (deletePlugins) {
-            for (const plugin of associatedPlugins) {
-                await this.uninstallPlugin(plugin.hash);
-            }
-        } else {
-            markSubscriptionRecordsUninstalled(subscriptionId);
+        for (const plugin of associatedPlugins) {
+            await this.uninstallPlugin(plugin.hash);
         }
         removeSubscriptionData(subscriptionId);
+        const nextSubscriptions = parseSubscriptionConfig(
+            this.appConfigService.getConfig("plugin.subscribeUrl"),
+        ).filter(subscription => subscription.id !== subscriptionId);
+        this.appConfigService.setConfig(
+            "plugin.subscribeUrl",
+            JSON.stringify(nextSubscriptions),
+        );
     }
 
     /**

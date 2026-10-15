@@ -219,6 +219,9 @@ export interface ILanguageData {
     "pluginSetting.section.subscription": string; // 订阅管理
     "pluginSetting.section.sort": string; // 插件排序
     "pluginSetting.section.maintenance": string; // 维护操作
+    "pluginSetting.maintenance.expand": string; // 展开维护操作
+    "pluginSetting.maintenance.collapse": string; // 收起维护操作
+    "pluginSetting.maintenance.toggleTip": string; // 维护操作折叠提示
     "pluginSetting.stat.installed": string; // 已安装
     "pluginSetting.stat.subscriptions": string; // 订阅
     "pluginSetting.stat.archived": string; // 已归档
@@ -240,7 +243,6 @@ export interface ILanguageData {
     "pluginSetting.subscription.deleteTip": string; // 删除订阅提示
     "pluginSetting.subscription.updateFailedTitle": string; // 订阅更新失败明细
     "pluginSetting.subscription.copyUrl": string; // 复制订阅地址
-    "pluginSetting.subscription.deleteKeepPlugins": string; // 仅删除订阅
     "pluginSetting.sort.manage": string; // 调整插件顺序
     "pluginSetting.sort.manageTip": string; // 调整插件顺序提示
     "toast.updateSubscriptionSuccess": string; // 订阅更新成功

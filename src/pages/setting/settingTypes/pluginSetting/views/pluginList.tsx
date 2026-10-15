@@ -87,6 +87,7 @@ export default function PluginList() {
     const colors = useColors();
     const { t } = useI18N();
     const [loading, setLoading] = useState(false);
+    const [maintenanceExpanded, setMaintenanceExpanded] = useState(false);
     const navigator = useNavigation<any>();
     const rawSubscriptions = useAppConfig("plugin.subscribeUrl");
     const subscriptions = useSubscriptionItems(rawSubscriptions);
@@ -293,16 +294,107 @@ export default function PluginList() {
                     ) : null}
                     <View style={styles.actionRow}>
                         <IconAction
-                            icon="bookmark-square"
-                            title={t("pluginSetting.section.subscription")}
-                            onPress={() => navigate("/pluginsetting/subscribe")}
-                        />
-                        <IconAction
                             icon="bars-3"
                             title={t("pluginSetting.section.sort")}
                             onPress={() => navigate("/pluginsetting/sort")}
                         />
                     </View>
+                </View>
+            ),
+        },
+        {
+            key: "subscriptions",
+            title: t("pluginSetting.section.subscription"),
+            data: subscriptions,
+            renderItem: ({ item }: { item: ISubscriptionItem }) => {
+                const info = subscriptionInfos[item.id];
+                return (
+                    <ListItem
+                        withHorizontalPadding
+                        onPress={() => navigator.navigate(
+                            "/pluginsetting/subscribe/detail",
+                            { subscriptionId: item.id },
+                        )}>
+                        <ListItem.Content
+                            title={item.name}
+                            description={info?.lastUpdatedAt
+                                ? t("pluginSetting.subscription.lastUpdated", {
+                                    time: new Date(info.lastUpdatedAt).toLocaleString(),
+                                })
+                                : item.url}
+                        />
+                        <ListItem.ListItemIcon icon="skip-right" position="right" />
+                    </ListItem>
+                );
+            },
+            ListEmptyComponent: (
+                <ManageSubscriptionRow
+                    icon="skip-right"
+                    title={t("pluginSetting.subscription.manage")}
+                    description={t("pluginSetting.subscription.manageTip")}
+                    onPress={() => navigate("/pluginsetting/subscribe")}
+                />
+            ),
+        },
+        {
+            key: "maintenance",
+            title: t("pluginSetting.section.maintenance"),
+            data: [1],
+            renderItem: () => (
+                <View style={[styles.maintenance, { backgroundColor: colors.card }]}>
+                    <ListItem
+                        withHorizontalPadding
+                        onPress={() => setMaintenanceExpanded(value => !value)}>
+                        <ListItem.Content
+                            title={maintenanceExpanded
+                                ? t("pluginSetting.maintenance.collapse")
+                                : t("pluginSetting.maintenance.expand")}
+                            description={t("pluginSetting.maintenance.toggleTip")}
+                        />
+                        <ListItem.ListItemIcon
+                            icon={maintenanceExpanded ? "minus" : "plus"}
+                            position="right"
+                        />
+                    </ListItem>
+                    {maintenanceExpanded ? (
+                        <View style={styles.maintenanceActions}>
+                            <IconAction
+                                icon="plus"
+                                title={t("pluginSetting.fabOptions.installFromLocal")}
+                                onPress={onInstallFromLocalClick}
+                            />
+                            <IconAction
+                                icon="plus"
+                                title={t("pluginSetting.fabOptions.installFromNetwork")}
+                                onPress={onInstallFromNetworkClick}
+                            />
+                            <IconAction
+                                icon="arrow-path"
+                                title={t("pluginSetting.fabOptions.updateAllPlugins")}
+                                onPress={onUpdateAllClick}
+                            />
+                            <IconAction
+                                icon="arrow-path"
+                                title={t("pluginSetting.fabOptions.updateSubscription")}
+                                onPress={onUpdateSubscriptionClick}
+                            />
+                            <IconAction
+                                icon="trash-outline"
+                                title={t("pluginSetting.menu.uninstallAll")}
+                                onPress={() => {
+                                    showDialog("SimpleDialog", {
+                                        title: t("pluginSetting.menu.uninstallAll"),
+                                        content: t("pluginSetting.menu.uninstallAllContent"),
+                                        async onOk() {
+                                            setLoading(true);
+                                            await PluginManager.uninstallAllPlugins();
+                                            setLoading(false);
+                                        },
+                                    });
+                                }}
+                            />
+                        </View>
+                    ) : null}
                 </View>
             ),
         },
@@ -327,37 +419,6 @@ export default function PluginList() {
             ),
         },
         {
-            key: "subscriptions",
-            title: t("pluginSetting.section.subscription"),
-            data: subscriptions,
-            renderItem: ({ item }: { item: ISubscriptionItem }) => {
-                const info = subscriptionInfos[item.id];
-                return (
-                    <ListItem
-                        withHorizontalPadding
-                        onPress={() => navigate("/pluginsetting/subscribe")}>
-                        <ListItem.Content
-                            title={item.name}
-                            description={info?.lastUpdatedAt
-                                ? t("pluginSetting.subscription.lastUpdated", {
-                                    time: new Date(info.lastUpdatedAt).toLocaleString(),
-                                })
-                                : item.url}
-                        />
-                        <ListItem.ListItemIcon icon="bookmark-square" position="right" />
-                    </ListItem>
-                );
-            },
-            ListEmptyComponent: (
-                <ManageSubscriptionRow
-                    icon="skip-right"
-                    title={t("pluginSetting.subscription.manage")}
-                    description={t("pluginSetting.subscription.manageTip")}
-                    onPress={() => navigate("/pluginsetting/subscribe")}
-                />
-            ),
-        },
-        {
             key: "sort",
             title: t("pluginSetting.section.sort"),
             data: [1],
@@ -371,50 +432,6 @@ export default function PluginList() {
                     />
                     <ListItem.ListItemIcon icon="skip-right" position="right" />
                 </ListItem>
-            ),
-        },
-        {
-            key: "maintenance",
-            title: t("pluginSetting.section.maintenance"),
-            data: [1],
-            renderItem: () => (
-                <View style={styles.maintenance}>
-                    <IconAction
-                        icon="plus"
-                        title={t("pluginSetting.fabOptions.installFromLocal")}
-                        onPress={onInstallFromLocalClick}
-                    />
-                    <IconAction
-                        icon="plus"
-                        title={t("pluginSetting.fabOptions.installFromNetwork")}
-                        onPress={onInstallFromNetworkClick}
-                    />
-                    <IconAction
-                        icon="arrow-path"
-                        title={t("pluginSetting.fabOptions.updateAllPlugins")}
-                        onPress={onUpdateAllClick}
-                    />
-                    <IconAction
-                        icon="arrow-path"
-                        title={t("pluginSetting.fabOptions.updateSubscription")}
-                        onPress={onUpdateSubscriptionClick}
-                    />
-                    <IconAction
-                        icon="trash-outline"
-                        title={t("pluginSetting.menu.uninstallAll")}
-                        onPress={() => {
-                            showDialog("SimpleDialog", {
-                                title: t("pluginSetting.menu.uninstallAll"),
-                                content: t("pluginSetting.menu.uninstallAllContent"),
-                                async onOk() {
-                                    setLoading(true);
-                                    await PluginManager.uninstallAllPlugins();
-                                    setLoading(false);
-                                },
-                            });
-                        }}
-                    />
-                </View>
             ),
         },
     ];
@@ -543,6 +560,11 @@ const styles = StyleSheet.create({
     },
     maintenance: {
         marginHorizontal: rpx(24),
+        borderRadius: rpx(12),
+        overflow: "hidden",
+    },
+    maintenanceActions: {
         gap: rpx(12),
+        paddingBottom: rpx(12),
     },
 });

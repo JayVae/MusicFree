@@ -150,21 +150,10 @@ export default function PluginSubscriptionDetail() {
                 })
                 : t("pluginSetting.subscription.deleteContent"),
             okText: t("pluginSetting.subscription.deleteWithPlugins"),
-            cancelText: t("pluginSetting.subscription.deleteKeepPlugins"),
             onOk: async () => {
                 setLoading(true);
                 try {
-                    await PluginManager.deleteSubscription(subscription.id, true);
-                    Toast.success(t("toast.deleteSuccess"));
-                    navigator.goBack();
-                } finally {
-                    setLoading(false);
-                }
-            },
-            onCancel: async () => {
-                setLoading(true);
-                try {
-                    await PluginManager.deleteSubscription(subscription.id, false);
+                    await PluginManager.deleteSubscription(subscription.id);
                     Toast.success(t("toast.deleteSuccess"));
                     navigator.goBack();
                 } finally {
