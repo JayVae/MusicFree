@@ -140,6 +140,7 @@ export interface ILanguageData {
     "sheetDetail.batchEditMusic": string; // 批量编辑音乐
     "sheetDetail.sortMusic": string; // 排序音乐
     "sheetDetail.batchChangeSource": string; // 批量临时换源
+    "sheetDetail.batchChangeSourceWithCount": string; // 批量临时换源（含数量）
     "sheetDetail.sortMusicOption.byTitle": string; // 按标题排序
     "sheetDetail.sortMusicOption.byArtist": string; // 按艺术家排序
     "sheetDetail.sortMusicOption.byAlbum": string; // 按专辑排序

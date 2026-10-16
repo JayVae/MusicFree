@@ -77,13 +77,16 @@ export default function () {
                                     }
                                     const targetPlugins = getBatchSourceTargetPlugins(pluginManager);
                                     showDialog("RadioDialog", {
-                                        title: t("sheetDetail.batchChangeSource"),
+                                        title: t("sheetDetail.batchChangeSourceWithCount", {
+                                            count: affectedMusicItems.length,
+                                        }),
                                         tip: t("dialog.batchSource.affectedCount", {
                                             count: affectedMusicItems.length,
                                         }),
                                         content: [
                                             {
                                                 value: "__auto__",
+                                                icon: "strategy",
                                                 label: t("dialog.batchSource.autoSelect"),
                                             },
                                             ...targetPlugins.map(plugin => ({
@@ -94,7 +97,9 @@ export default function () {
                                         defaultSelected: "__auto__",
                                         onOk(value) {
                                             showDialog("BatchSourceDialog", {
-                                                title: t("sheetDetail.batchChangeSource"),
+                                                title: t("sheetDetail.batchChangeSourceWithCount", {
+                                                    count: affectedMusicItems.length,
+                                                }),
                                                 affectedMusicItems,
                                                 sheetId: id,
                                                 targetPluginName:
