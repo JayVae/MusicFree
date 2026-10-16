@@ -29,6 +29,7 @@ R8 代码提交：
 
 ```text
 432d9f9 feat(plugin): add source groups
+a91d236 fix(plugin): clarify group operation risk
 ```
 
 R9 开始时从 R8 收尾分支创建：
