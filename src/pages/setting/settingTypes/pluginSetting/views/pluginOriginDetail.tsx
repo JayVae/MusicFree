@@ -185,6 +185,12 @@ export default function PluginOriginDetail() {
                                 ) : null}
                             </View>
                             <View style={[styles.actionCard, { backgroundColor: colors.card }]}>
+                                <ThemeText
+                                    fontSize="subTitle"
+                                    fontColor="textSecondary"
+                                    style={styles.riskText}>
+                                    {t("pluginSetting.origin.actionRisk")}
+                                </ThemeText>
                                 {actions.map(action => (
                                     <ListItem
                                         key={action}
@@ -240,10 +246,15 @@ const styles = StyleSheet.create({
         gap: rpx(8),
     },
     actionCard: {
+        paddingVertical: rpx(8),
         marginHorizontal: rpx(24),
         marginBottom: rpx(16),
         borderRadius: rpx(12),
         overflow: "hidden",
+    },
+    riskText: {
+        marginTop: rpx(8),
+        marginHorizontal: rpx(24),
     },
     sectionHeader: {
         marginTop: rpx(24),

@@ -195,6 +195,7 @@
     "pluginSetting.origin.healthCount": "Available {available} · Archived {archived}",
     "pluginSetting.origin.actionTip": "Apply to {count} plugins",
     "pluginSetting.origin.actionContent": "This batch operation will change the existing state of {count} plugins. You can still adjust each plugin separately.",
+    "pluginSetting.origin.actionRisk": "Group operations overwrite the existing state of plugins in this group. Confirm the affected scope before continuing.",
     "pluginSetting.origin.actions.enable": "Enable All",
     "pluginSetting.origin.actions.disable": "Disable All",
     "pluginSetting.origin.actions.archive": "Archive All",

@@ -195,6 +195,7 @@
     "pluginSetting.origin.healthCount": "正常 {available} · 已归档 {archived}",
     "pluginSetting.origin.actionTip": "将应用到 {count} 个插件",
     "pluginSetting.origin.actionContent": "将批量改变 {count} 个插件的既有状态；操作后仍可单独调整每个插件。",
+    "pluginSetting.origin.actionRisk": "组级操作会覆盖组内插件的既有状态；请确认影响范围后再继续。",
     "pluginSetting.origin.actions.enable": "整组启用",
     "pluginSetting.origin.actions.disable": "整组禁用",
     "pluginSetting.origin.actions.archive": "整组归档",

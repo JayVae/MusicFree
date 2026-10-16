@@ -195,6 +195,7 @@
     "pluginSetting.origin.healthCount": "正常 {available} · 已歸檔 {archived}",
     "pluginSetting.origin.actionTip": "將應用到 {count} 個外掛",
     "pluginSetting.origin.actionContent": "將批次改變 {count} 個外掛的既有狀態；操作後仍可單獨調整每個外掛。",
+    "pluginSetting.origin.actionRisk": "組級操作會覆蓋組內外掛的既有狀態；請確認影響範圍後再繼續。",
     "pluginSetting.origin.actions.enable": "整組啟用",
     "pluginSetting.origin.actions.disable": "整組停用",
     "pluginSetting.origin.actions.archive": "整組歸檔",

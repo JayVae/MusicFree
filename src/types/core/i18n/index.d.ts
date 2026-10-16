@@ -272,6 +272,7 @@ export interface ILanguageData {
     "pluginSetting.origin.healthCount": string; // 分组健康数量
     "pluginSetting.origin.actionTip": string; // 组操作影响提示
     "pluginSetting.origin.actionContent": string; // 组操作确认内容
+    "pluginSetting.origin.actionRisk": string; // 组操作风险提示
     "pluginSetting.origin.actions.enable": string; // 整组启用
     "pluginSetting.origin.actions.disable": string; // 整组禁用
     "pluginSetting.origin.actions.archive": string; // 整组归档
