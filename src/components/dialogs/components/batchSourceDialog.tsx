@@ -15,6 +15,7 @@ import {
 } from "@/core/mediaSourceBatch";
 import { hideDialog } from "../useDialog";
 import rpx from "@/utils/rpx";
+import Toast from "@/utils/toast";
 
 interface IBatchSourceDialogProps {
     title: string;
@@ -39,6 +40,7 @@ export default function BatchSourceDialog(props: IBatchSourceDialogProps) {
     );
     const [completed, setCompleted] = useState(false);
     const shouldAbortRef = useRef(false);
+    const backgroundedRef = useRef(false);
 
     useEffect(() => {
         let mounted = true;
@@ -51,7 +53,7 @@ export default function BatchSourceDialog(props: IBatchSourceDialogProps) {
             currentMusic: TrackPlayer.currentMusic,
             shouldAbort: () => shouldAbortRef.current,
             onItemUpdate: state => {
-                if (!mounted || shouldAbortRef.current) {
+                if (!mounted || shouldAbortRef.current || backgroundedRef.current) {
                     return;
                 }
                 setStates(previous => previous.map(item =>
@@ -61,13 +63,22 @@ export default function BatchSourceDialog(props: IBatchSourceDialogProps) {
                 ));
             },
         }).then(result => {
-            if (!mounted || shouldAbortRef.current) {
+            if (shouldAbortRef.current) {
+                return;
+            }
+            if (backgroundedRef.current) {
+                const summary = summarizeBatchSourceResult(result);
+                Toast.success(t("dialog.batchSource.backgroundCompleted", summary));
                 return;
             }
             setStates(result);
             setCompleted(true);
         }).catch(() => {
-            if (!mounted || shouldAbortRef.current) {
+            if (shouldAbortRef.current) {
+                return;
+            }
+            if (backgroundedRef.current) {
+                Toast.warn(t("dialog.batchSource.backgroundFailed"));
                 return;
             }
             setCompleted(true);
@@ -94,6 +105,11 @@ export default function BatchSourceDialog(props: IBatchSourceDialogProps) {
 
     const dismiss = () => {
         shouldAbortRef.current = true;
+        hideDialog();
+    };
+
+    const background = () => {
+        backgroundedRef.current = true;
         hideDialog();
     };
 
@@ -148,13 +164,34 @@ export default function BatchSourceDialog(props: IBatchSourceDialogProps) {
                 </ThemeText>
             </View>
             <Dialog.Actions
-                actions={[{
-                    title: completed ? t("common.close") : t("common.cancel"),
-                    type: "primary",
-                    onPress: dismiss,
-                }]}
+                actions={[
+                    ...(completed ? [] : [{
+                        title: t("dialog.batchSource.background"),
+                        onPress: background,
+                    }]),
+                    {
+                        title: completed ? t("common.close") : t("common.cancel"),
+                        type: "primary",
+                        onPress: dismiss,
+                    },
+                ]}
             />
         </Dialog>
+    );
+}
+
+function summarizeBatchSourceResult(states: IBatchSourceItemState[]) {
+    return states.reduce(
+        (prev, item) => {
+            prev[item.status] += 1;
+            return prev;
+        },
+        {
+            [BatchSourceStatus.Success]: 0,
+            [BatchSourceStatus.Fail]: 0,
+            [BatchSourceStatus.Skip]: 0,
+            [BatchSourceStatus.Pending]: 0,
+        } as Record<BatchSourceStatus, number>,
     );
 }
 

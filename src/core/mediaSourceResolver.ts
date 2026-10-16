@@ -82,8 +82,11 @@ export function getMediaSourceFallbackCache(
     };
 }
 
-function setMediaSourceFallbackCache(entry: IResolvedFallbackSource) {
-    const key = getMediaSourceFallbackCacheKey(entry.sourceIdentity);
+function setMediaSourceFallbackCache(
+    entry: IResolvedFallbackSource,
+    targetMusicItem: IMusic.IMusicItemBase,
+) {
+    const key = getMediaSourceFallbackCacheKey(targetMusicItem);
     if (!key) {
         return;
     }
@@ -305,7 +308,7 @@ export class MediaSourceFallbackResolver {
                         },
                         resolvedAt: Date.now(),
                     };
-                    setMediaSourceFallbackCache(resolved);
+                    setMediaSourceFallbackCache(resolved, this.musicItem);
                     trace("换源候选取源成功", resolved);
                     this.resolverOptions.onResolved?.(resolved);
                     return resolved;

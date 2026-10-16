@@ -608,6 +608,9 @@ export interface ILanguageData {
     "dialog.batchSource.filtering": string; // 正在检查歌曲音源
     "dialog.batchSource.affectedCount": string; // 预计影响数量
     "dialog.batchSource.autoSelect": string; // 自动推荐
+    "dialog.batchSource.background": string; // 后台运行
+    "dialog.batchSource.backgroundCompleted": string; // 后台换源完成
+    "dialog.batchSource.backgroundFailed": string; // 后台换源失败
     "dialog.batchSource.noAffected": string; // 没有需要临时换源的歌曲
     "dialog.batchSource.summary": string; // 批量换源结果统计
     "dialog.batchSource.status.pending": string; // 等待处理

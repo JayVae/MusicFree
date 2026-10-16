@@ -35,7 +35,10 @@ import { TrackPlayerEvents } from "@/core.defination/trackPlayer";
 import type { IAppConfig } from "@/types/core/config";
 import type { IMusicHistory } from "@/types/core/musicHistory";
 import { ITrackPlayer } from "@/types/core/trackPlayer/index";
-import { MediaSourceFallbackResolver } from "../mediaSourceResolver";
+import {
+    getMediaSourceFallbackCache,
+    MediaSourceFallbackResolver,
+} from "../mediaSourceResolver";
 import {
     clearPlaylistSourcePreference,
     getPlaylistSourcePreference,
@@ -512,15 +515,28 @@ class TrackPlayer extends EventEmitter<{
             ) ?? true;
             this.sourceFallbackResolver = this.createSourceFallbackResolver(musicItem);
 
-            // 5.3 插件返回音源
+            // 5.3 批量换源已得到的临时源直接优先使用；失败后由 PlaybackError 继续候选流程
+            const cachedFallback = shouldFallback
+                ? getMediaSourceFallbackCache(musicItem)
+                : null;
             let source: IPlugin.IMediaSourceResult | null = null;
-            for (let quality of qualityOrder) {
-                if (this.isCurrentMusic(musicItem)) {
-                    source =
-                        (await plugin?.methods?.getMediaSource(
-                            musicItem,
-                            quality,
-                        )) ?? null;
+            if (cachedFallback?.source.url && this.isCurrentMusic(musicItem)) {
+                source = cachedFallback.source;
+                this.setQuality(cachedFallback.source.quality ?? qualityOrder[0]);
+                setTemporarySourcePluginName(cachedFallback.resolvedByPluginName);
+                trace("使用已解析临时音源", cachedFallback);
+            }
+
+            if (!source) {
+                for (let quality of qualityOrder) {
+                    if (!this.isCurrentMusic(musicItem)) {
+                        // 5.3.2 已经切换到其他歌曲了，
+                        return;
+                    }
+                    source = await plugin?.methods?.getMediaSource(
+                        musicItem,
+                        quality,
+                    ) ?? null;
                     // 5.3.1 获取到真实源
                     if (source?.url) {
                         this.setQuality(quality);
@@ -528,9 +544,6 @@ class TrackPlayer extends EventEmitter<{
                         break;
                     }
                     source = null;
-                } else {
-                    // 5.3.2 已经切换到其他歌曲了，
-                    return;
                 }
             }
 
