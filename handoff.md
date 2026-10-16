@@ -1,9 +1,17 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-16
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9 已验收通过；下一阶段为最终 Android 回归。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9 与最终 Android 回归均已验收通过；规划阶段全部收尾。
 
 ## 1. 分支
+
+最终回归分支：
+
+```text
+feat/0.6.2-final-regression
+```
+
+该分支基于 R9 收尾分支 `feat/0.6.2-plugin-availability-test` 创建；已核对 R9 分支线性包含前序已验收需求分支代码。
 
 R7 已验收分支：
 
@@ -136,21 +144,28 @@ node node_modules/jest/bin/jest.js --passWithNoTests
 git diff --check
 ```
 
-## 5. 下一阶段
+## 5. 最终回归结论
 
-1. 基于全部已验收需求分支创建最终回归分支。
-2. 执行最终 Android 回归。
+1. 已创建 `feat/0.6.2-final-regression` 并完成 Android debug 构建、安装和真机启动。
+2. 最终 Android 真机回归已由用户于 2026-10-16 验收通过。
+3. 回归覆盖播放换源、批量换源、插件健康、订阅与来源分组、下载历史、插件元数据先行启动、批量可用性测试和常规 Android 播放链路。
+4. 未新增运行时依赖，未提交 `run.md` / `testresult.md`。
+5. 无剩余待执行阶段。
 
 ## 6. 验证与约束
 
-R9 收尾验证已通过：
+最终回归验证已通过：
 
-```powershell
+```text
 node node_modules/typescript/bin/tsc --noEmit --pretty false
-node node_modules/eslint/bin/eslint.js <changed-ts-files>
 node node_modules/jest/bin/jest.js --passWithNoTests
+node node_modules/eslint/bin/eslint.js <changed-ts-files>
 git diff --check
+cd android && ./gradlew assembleDebug
+GRADLE_USER_HOME="$USERPROFILE/.gradle" npx react-native run-android
 ```
+
+ESLint 最终结果为 0 errors / 29 warnings；Android debug 构建成功，APK 已安装到真机 `PJE110` 并启动。
 
 R9 Android 真机已由用户构建验收通过。
 
