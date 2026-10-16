@@ -288,32 +288,22 @@ function _PluginItem(props: IPluginItemProps) {
                     backgroundColor: colors.card,
                 },
             ]}>
-            <View style={styles.header}>
+            <TouchableOpacity
+                style={styles.header}
+                activeOpacity={0.8}
+                disabled={!selectable}
+                onPress={selectable
+                    ? () => onSelectToggle?.(plugin.hash)
+                    : undefined}>
                 <View style={styles.headerPluginContainer}>
                     {selectable ? (
-                        <Checkbox
-                            checked={selected}
-                            onPress={() => onSelectToggle?.(plugin.hash)}
-                        />
+                        <Checkbox checked={selected} />
                     ) : null}
-                    {selectable ? (
-                        <TouchableOpacity
-                            style={styles.pluginNameTouchable}
-                            activeOpacity={0.7}
-                            onPress={() => onSelectToggle?.(plugin.hash)}>
-                            <ThemeText
-                                numberOfLines={1}
-                                fontSize="title">
-                                {plugin.name}
-                            </ThemeText>
-                        </TouchableOpacity>
-                    ) : (
-                        <ThemeText
-                            numberOfLines={1}
-                            fontSize="title">
-                            {plugin.name}
-                        </ThemeText>
-                    )}
+                    <ThemeText
+                        numberOfLines={1}
+                        fontSize="title">
+                        {plugin.name}
+                    </ThemeText>
                     {
                         availabilityTest ? (
                             <Tag tagName={t(
@@ -365,7 +355,7 @@ function _PluginItem(props: IPluginItemProps) {
                         pluginManager.setPluginEnabled(plugin, val);
                     }}
                 />
-            </View>
+            </TouchableOpacity>
             <View style={styles.description}>
                 <ThemeText fontSize="subTitle" fontColor="textSecondary">
                     {t("pluginSetting.pluginItem.versionHint", {
@@ -494,9 +484,6 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         gap: rpx(8),
         alignItems: "center",
-    },
-    pluginNameTouchable: {
-        flexShrink: 1,
     },
     author: {
         marginLeft: rpx(24),

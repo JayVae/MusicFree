@@ -45,6 +45,7 @@ import {
 } from "@/core/pluginAvailability";
 
 interface PluginGroup {
+    sectionKey: "installed";
     name: string;
     plugins: Plugin[];
 }
@@ -132,6 +133,7 @@ export default function PluginList() {
             groupMap.set(plugin.name, group);
         });
         return [...groupMap.entries()].map(([name, groupPlugins]) => ({
+            sectionKey: "installed" as const,
             name,
             plugins: groupPlugins,
         }));
@@ -689,7 +691,7 @@ export default function PluginList() {
                         sections={sections as any}
                         keyExtractor={(item, index) => {
                             const groupItem = item as PluginGroup;
-                            return groupItem.plugins
+                            return groupItem?.sectionKey === "installed"
                                 ? `installed-group-${groupItem.name}`
                                 : `${index}`;
                         }}
