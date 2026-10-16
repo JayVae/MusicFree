@@ -7,6 +7,8 @@ export interface IInstallPluginConfig {
     notCheckVersion?: boolean;
     subscriptionId?: string;
     subscriptionUrl?: string;
+    /** 更新插件时保留原有安装来源分组。 */
+    preserveOriginHash?: string;
 }
 
 /**
@@ -209,4 +211,3 @@ export interface IPluginManager {
      */
     getAlternativePlugin(plugin: Plugin): Plugin | null;
 }
-

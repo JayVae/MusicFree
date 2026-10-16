@@ -91,6 +91,10 @@ export function isPluginAvailableForService(pluginName?: string | null) {
     return getPluginHealthStatus(pluginName) === PluginHealthStatus.Available;
 }
 
+export function usePluginHealthRecords(): Record<string, IPluginHealthRecord> {
+    return useAtomValue(pluginHealthAtom);
+}
+
 export function usePluginHealth(pluginName?: string | null): IPluginHealthRecord | null {
     const records = useAtomValue(pluginHealthAtom);
     const key = normalizeHealthKey(pluginName);

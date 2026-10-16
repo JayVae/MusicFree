@@ -40,6 +40,13 @@ import {
     updateSubscriptionInfo,
 } from "./subscription";
 import { localFilePlugin, Plugin, PluginState } from "./plugin";
+import {
+    clearPluginOriginRecords,
+    getPluginOrigin,
+    markPluginOriginUninstalled,
+    PluginOriginType,
+    recordPluginOrigin,
+} from "./pluginOrigin";
 import i18n from "../i18n";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
@@ -82,6 +89,54 @@ class PluginManager implements IPluginManager, IInjectable {
             pluginName: plugin.name,
             sourceUrl,
             installedVersion: plugin.instance.version,
+            archivedAsDuplicate,
+        });
+    }
+
+    private recordPluginOrigin(
+        plugin: Plugin,
+        sourceUrl: string,
+        config?: IInstallPluginConfig,
+        archivedAsDuplicate?: boolean,
+    ) {
+        if (config?.subscriptionId) {
+            const subscription = parseSubscriptionConfig(
+                this.appConfigService.getConfig("plugin.subscribeUrl"),
+            ).find(it => it.id === config.subscriptionId);
+            recordPluginOrigin({
+                pluginHash: plugin.hash,
+                pluginName: plugin.name,
+                originType: PluginOriginType.Subscription,
+                originId: config.subscriptionId,
+                originName: subscription?.name,
+                sourceUrl,
+                archivedAsDuplicate,
+            });
+            return;
+        }
+
+        if (config?.preserveOriginHash) {
+            const previousOrigin = getPluginOrigin(config.preserveOriginHash);
+            if (previousOrigin) {
+                recordPluginOrigin({
+                    pluginHash: plugin.hash,
+                    pluginName: plugin.name,
+                    originType: previousOrigin.originType,
+                    originId: previousOrigin.originId,
+                    originName: previousOrigin.originName,
+                    sourceUrl,
+                    archivedAsDuplicate,
+                });
+                return;
+            }
+        }
+
+        recordPluginOrigin({
+            pluginHash: plugin.hash,
+            pluginName: plugin.name,
+            originType: PluginOriginType.Network,
+            originId: "network",
+            sourceUrl,
             archivedAsDuplicate,
         });
     }
@@ -322,12 +377,14 @@ class PluginManager implements IPluginManager, IInjectable {
                     try {
                         await unlink(oldVersionPlugin.path);
                     } catch {}
+                    markPluginOriginUninstalled(oldVersionPlugin.hash);
                 }
                 const _pluginPath = `${pathConst.pluginPath}${fn}.js`;
                 await copyFile(pluginPath, _pluginPath);
                 plugin.path = _pluginPath;
                 allPlugins = allPlugins.concat(plugin);
                 this.setPlugins(allPlugins);
+                this.recordPluginOrigin(plugin, "local", config);
 
                 return {
                     success: true,
@@ -383,6 +440,7 @@ class PluginManager implements IPluginManager, IInjectable {
                 if (pluginIndex !== -1) {
                     // 内容 hash 相同，唯一保留一份，同时补充订阅来源关系
                     this.recordSubscriptionInstall(plugin, url, config);
+                    this.recordPluginOrigin(plugin, url, config);
                     return {
                         success: true,
                         message: "插件已安装",
@@ -408,6 +466,7 @@ class PluginManager implements IPluginManager, IInjectable {
                     this.setPlugins(allPlugins);
                     markPluginArchived(plugin.name, plugin.hash);
                     this.recordSubscriptionInstall(plugin, url, config, true);
+                    this.recordPluginOrigin(plugin, url, config, true);
                     return {
                         success: true,
                         message: "重复来源插件已归档",
@@ -465,9 +524,11 @@ class PluginManager implements IPluginManager, IInjectable {
                         try {
                             await unlink(oldVersionPlugin.path);
                         } catch {}
+                        markPluginOriginUninstalled(oldVersionPlugin.hash);
                     }
                     this.setPlugins(allPlugins);
                     this.recordSubscriptionInstall(plugin, url, config);
+                    this.recordPluginOrigin(plugin, url, config);
                     return {
                         success: true,
                         pluginName: plugin.name,
@@ -520,6 +581,7 @@ class PluginManager implements IPluginManager, IInjectable {
                 const pluginHash = plugins[targetIndex].hash;
                 await unlink(plugins[targetIndex].path);
                 markPluginUninstalled(pluginHash);
+                markPluginOriginUninstalled(pluginHash);
                 plugins = plugins.filter(_ => _.hash !== hash);
                 this.setPlugins(plugins);
                 // 防止其他重名
@@ -549,6 +611,7 @@ class PluginManager implements IPluginManager, IInjectable {
         allPlugins.forEach(plugin => markPluginUninstalled(plugin.hash));
         this.setPlugins([]);
         clearAllPluginHealth();
+        clearPluginOriginRecords();
 
         /** 清除空余文件，异步做就可以了 */
         readDir(pathConst.pluginPath)
@@ -571,7 +634,9 @@ class PluginManager implements IPluginManager, IInjectable {
             throw new Error("没有更新源");
         }
         try {
-            await this.installPluginFromUrl(updateUrl);
+            await this.installPluginFromUrl(updateUrl, {
+                preserveOriginHash: plugin.hash,
+            });
         } catch (e: any) {
             if (e.message === "插件已安装") {
                 throw new Error(i18n.t("checkUpdate.error.latestVersion"));

@@ -7,12 +7,17 @@ import Loading from "@/components/base/loading";
 import PluginManager, { Plugin, useSortedPlugins } from "@/core/pluginManager";
 import {
     ISubscriptionItem,
-    useSubscriptionInfos,
     useSubscriptionItems,
     useSubscriptionRecords,
     withSubscriptionId,
 } from "@/core/pluginManager/subscription";
 import { PluginHealthStatus, getPluginHealthStatus } from "@/core/pluginManager/health";
+import {
+    buildPluginOriginGroups,
+    IPluginOriginGroup,
+    PluginOriginType,
+    usePluginOriginRecords,
+} from "@/core/pluginManager/pluginOrigin";
 import useColors from "@/hooks/useColors";
 import { trace } from "@/utils/log";
 
@@ -41,7 +46,7 @@ interface IAddSubscriptionAction {
     kind: "add-subscription";
 }
 
-type SubscriptionSectionItem = ISubscriptionItem | IAddSubscriptionAction;
+type SubscriptionSectionItem = ISubscriptionItem | IAddSubscriptionAction | IPluginOriginGroup;
 
 const ADD_SUBSCRIPTION_ACTION: IAddSubscriptionAction = {
     kind: "add-subscription",
@@ -102,8 +107,8 @@ export default function PluginList() {
     const navigator = useNavigation<any>();
     const rawSubscriptions = useAppConfig("plugin.subscribeUrl");
     const subscriptions = useSubscriptionItems(rawSubscriptions);
-    const subscriptionInfos = useSubscriptionInfos();
     const subscriptionRecords = useSubscriptionRecords();
+    const originRecords = usePluginOriginRecords();
 
     const pluginGroups = useMemo(() => {
         const groupMap = new Map<string, Plugin[]>();
@@ -150,6 +155,10 @@ export default function PluginList() {
                 .map(record => record.pluginHash),
         ).size,
         [subscriptionRecords, installedHashes],
+    );
+    const originGroups = useMemo(
+        () => buildPluginOriginGroups(plugins, originRecords, subscriptions),
+        [plugins, originRecords, subscriptions],
     );
     const archivedCount = plugins.filter(plugin =>
         getPluginHealthStatus(plugin.name) === PluginHealthStatus.Archived
@@ -217,7 +226,10 @@ export default function PluginList() {
                 if (!plugin.instance.srcUrl) {
                     continue;
                 }
-                results.push(...await installPluginFromUrl(plugin.instance.srcUrl));
+                results.push(...await installPluginFromUrl(
+                    plugin.instance.srcUrl,
+                    plugin.hash,
+                ));
             }
             const successResults = results.filter(it => it.success);
             const failResults = results.filter(it => !it.success);
@@ -351,8 +363,20 @@ export default function PluginList() {
         },
         {
             key: "subscriptions",
-            title: t("pluginSetting.section.subscription"),
-            data: [ADD_SUBSCRIPTION_ACTION, ...subscriptions],
+            title: t("pluginSetting.section.sourceGroups"),
+            data: [
+                ADD_SUBSCRIPTION_ACTION,
+                ...[...originGroups].sort((a, b) => {
+                    const order: Record<PluginOriginType, number> = {
+                        [PluginOriginType.Local]: 0,
+                        [PluginOriginType.Network]: 1,
+                        [PluginOriginType.Builtin]: 2,
+                        [PluginOriginType.Subscription]: 3,
+                    };
+                    return order[a.originType] - order[b.originType] ||
+                        (a.originName ?? "").localeCompare(b.originName ?? "");
+                }),
+            ],
             renderItem: ({ item }: { item: SubscriptionSectionItem }) => {
                 if ("kind" in item) {
                     return (
@@ -368,21 +392,31 @@ export default function PluginList() {
                         />
                     );
                 }
-                const info = subscriptionInfos[item.id];
+                const group = item as IPluginOriginGroup;
+                const groupTitle = group.originType === PluginOriginType.Subscription
+                    ? group.originName ?? group.originId
+                    : t(`pluginSetting.origin.${group.originType}` as any);
+                const description = [
+                    t(`pluginSetting.origin.${group.originType}` as any),
+                    t("pluginSetting.origin.pluginCount", {
+                        count: group.pluginCount,
+                    }),
+                    group.latestChangedAt
+                        ? t("pluginSetting.subscription.lastUpdated", {
+                            time: new Date(group.latestChangedAt).toLocaleString(),
+                        })
+                        : undefined,
+                ].filter(Boolean).join(" · ");
                 return (
                     <ListItem
                         withHorizontalPadding
                         onPress={() => navigator.navigate(
-                            "/pluginsetting/subscribe/detail",
-                            { subscriptionId: item.id },
+                            "/pluginsetting/origin/detail",
+                            { groupId: group.key },
                         )}>
                         <ListItem.Content
-                            title={item.name}
-                            description={info?.lastUpdatedAt
-                                ? t("pluginSetting.subscription.lastUpdated", {
-                                    time: new Date(info.lastUpdatedAt).toLocaleString(),
-                                })
-                                : item.url}
+                            title={groupTitle}
+                            description={description}
                         />
                         <ListItem.ListItemIcon icon="skip-right" position="right" />
                     </ListItem>
@@ -535,12 +569,16 @@ function IconAction(props: {
     );
 }
 
-async function installPluginFromUrl(text: string): Promise<IInstallPluginResult[]> {
+async function installPluginFromUrl(
+    text: string,
+    preserveOriginHash?: string,
+): Promise<IInstallPluginResult[]> {
     try {
         const inputUrl = text.trim();
         if (!inputUrl.toLowerCase().endsWith(".json")) {
             return [await PluginManager.installPluginFromUrl(inputUrl, {
                 notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+                preserveOriginHash,
             })];
         }
         const jsonFile = (
@@ -559,6 +597,7 @@ async function installPluginFromUrl(text: string): Promise<IInstallPluginResult[
         for (const url of urls) {
             results.push(await PluginManager.installPluginFromUrl(url, {
                 notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+                preserveOriginHash,
             }));
         }
         return results;

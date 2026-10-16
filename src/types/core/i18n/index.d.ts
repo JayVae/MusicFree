@@ -202,6 +202,7 @@ export interface ILanguageData {
     "pluginSetting.pluginItem.health.archived": string; // 已归档
     "pluginSetting.pluginItem.health.parseError": string; // 加载失败
     "pluginSetting.pluginItem.health.failureCount": string; // 连续失败次数
+    "pluginSetting.pluginItem.status.disabled": string; // 已禁用
     "pluginSetting.pluginItem.options.markInvalid": string; // 标记失效
     "pluginSetting.pluginItem.options.markInvalidContent": string; // 标记失效确认
     "pluginSetting.pluginItem.options.archivePlugin": string; // 归档插件
@@ -230,6 +231,7 @@ export interface ILanguageData {
     "pluginSetting.section.overview": string; // 概览
     "pluginSetting.section.installed": string; // 已安装插件
     "pluginSetting.section.subscription": string; // 订阅管理
+    "pluginSetting.section.sourceGroups": string; // 插件来源
     "pluginSetting.section.sort": string; // 插件排序
     "pluginSetting.section.maintenance": string; // 维护操作
     "pluginSetting.maintenance.expand": string; // 展开维护操作
@@ -260,6 +262,20 @@ export interface ILanguageData {
     "pluginSetting.subscription.deleteTip": string; // 删除订阅提示
     "pluginSetting.subscription.updateFailedTitle": string; // 订阅更新失败明细
     "pluginSetting.subscription.copyUrl": string; // 复制订阅地址
+    "pluginSetting.origin.subscription": string; // 订阅
+    "pluginSetting.origin.local": string; // 本地安装
+    "pluginSetting.origin.network": string; // 网络安装
+    "pluginSetting.origin.builtin": string; // 内置
+    "pluginSetting.origin.detail": string; // 来源分组
+    "pluginSetting.origin.notFound": string; // 来源分组不存在或已为空
+    "pluginSetting.origin.pluginCount": string; // 插件数量
+    "pluginSetting.origin.healthCount": string; // 分组健康数量
+    "pluginSetting.origin.actionTip": string; // 组操作影响提示
+    "pluginSetting.origin.actionContent": string; // 组操作确认内容
+    "pluginSetting.origin.actions.enable": string; // 整组启用
+    "pluginSetting.origin.actions.disable": string; // 整组禁用
+    "pluginSetting.origin.actions.archive": string; // 整组归档
+    "pluginSetting.origin.actions.restore": string; // 整组恢复
     "pluginSetting.sort.manage": string; // 调整插件顺序
     "pluginSetting.sort.manageTip": string; // 调整插件顺序提示
     "toast.updateSubscriptionSuccess": string; // 订阅更新成功
