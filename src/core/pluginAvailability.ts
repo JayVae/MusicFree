@@ -220,25 +220,6 @@ export async function runPluginAvailabilityTests(options: {
             it => it.hash === initialState.pluginHash,
         )!;
         const healthStatus = getPluginHealthStatus(plugin.name);
-        const testable = plugin.state !== PluginState.Error &&
-            healthStatus !== PluginHealthStatus.UserInvalid &&
-            healthStatus !== PluginHealthStatus.Archived;
-
-        if (!testable) {
-            const skippedState = {
-                ...initialState,
-                status: PluginAvailabilityStatus.Skipped,
-            };
-            updateAvailabilityState(skippedState);
-            results.splice(
-                results.findIndex(it => it.pluginHash === skippedState.pluginHash),
-                1,
-                skippedState,
-            );
-            onItemUpdate?.(skippedState);
-            continue;
-        }
-
         const testingState = {
             ...initialState,
             status: PluginAvailabilityStatus.Testing,
@@ -268,7 +249,11 @@ export async function runPluginAvailabilityTests(options: {
                 ) {
                     restorePlugin(plugin.name, plugin.hash);
                 }
-            } else {
+            } else if (
+                healthStatus !== PluginHealthStatus.UserInvalid &&
+                healthStatus !== PluginHealthStatus.Archived
+            ) {
+                // 手动失效 / 归档是用户状态；测试结果只展示，不自动改写。
                 markPluginQuarantined(
                     plugin.name,
                     plugin.hash,

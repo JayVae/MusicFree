@@ -31,6 +31,7 @@ import { showDialog } from "@/components/dialogs/useDialog";
 import { showPanel } from "@/components/panels/usePanel";
 import AppBar from "@/components/base/appBar";
 import ThemeText from "@/components/base/themeText";
+import TextButton from "@/components/base/textButton";
 import ListItem from "@/components/base/listItem";
 import PluginItem from "../components/pluginItem";
 import { IIconName } from "@/components/base/icon.tsx";
@@ -110,6 +111,7 @@ export default function PluginList() {
     const { t } = useI18N();
     const [loading, setLoading] = useState(false);
     const [selectedPluginHashes, setSelectedPluginHashes] = useState<Set<string>>(new Set());
+    const [isSelectingPlugins, setIsSelectingPlugins] = useState(false);
     const [isAvailabilityTesting, setIsAvailabilityTesting] = useState(false);
     const availabilityAbortRef = useRef({ canceled: false });
     const availabilityStates = usePluginAvailabilityStates();
@@ -203,6 +205,16 @@ export default function PluginList() {
             }
             return next;
         });
+    }, []);
+
+    const exitPluginSelectionMode = useCallback(() => {
+        setIsSelectingPlugins(false);
+        setSelectedPluginHashes(new Set());
+    }, []);
+
+    const togglePluginSelectionMode = useCallback(() => {
+        setIsSelectingPlugins(previous => !previous);
+        setSelectedPluginHashes(new Set());
     }, []);
 
     const startAvailabilityTest = (keyword: string) => {
@@ -584,26 +596,12 @@ export default function PluginList() {
                                 onPress={onUpdateAllClick}
                             />
                             <IconAction
-                                icon="magnifying-glass"
-                                title={t("pluginSetting.availability.test", {
-                                    count: selectedPluginHashes.size,
-                                })}
-                                onPress={onTestAvailabilityClick}
+                                icon={isSelectingPlugins ? "x-mark" : "check-circle-outline"}
+                                title={isSelectingPlugins
+                                    ? t("pluginSetting.availability.exitSelection")
+                                    : t("pluginSetting.availability.selectPlugins")}
+                                onPress={togglePluginSelectionMode}
                             />
-                            {isAvailabilityTesting ? (
-                                <IconAction
-                                    icon="x-mark"
-                                    title={t("pluginSetting.availability.cancel")}
-                                    onPress={() => {
-                                        availabilityAbortRef.current = {
-                                            canceled: true,
-                                        };
-                                        Toast.success(
-                                            t("pluginSetting.availability.canceling"),
-                                        );
-                                    }}
-                                />
-                            ) : null}
                             <IconAction
                                 icon="arrow-path"
                                 title={t("pluginSetting.fabOptions.updateSubscription")}
@@ -644,7 +642,7 @@ export default function PluginList() {
                             duplicateSourceGroup={duplicateSourceNames.has(
                                 plugin.name,
                             )}
-                            selectable
+                            selectable={isSelectingPlugins}
                             selected={selectedPluginHashes.has(plugin.hash)}
                             onSelectToggle={() => togglePluginSelected(plugin.hash)}
                             availabilityTest={availabilityStates[plugin.hash]}
@@ -692,6 +690,43 @@ export default function PluginList() {
                             (section as any).renderItem({ item, index })
                         }
                         ListEmptyComponent={Empty}
+                        ListHeaderComponent={isSelectingPlugins ? (
+                            <View
+                                style={[
+                                    styles.selectionBar,
+                                    { backgroundColor: colors.card },
+                                ]}>
+                                <ThemeText fontSize="subTitle">
+                                    {t("pluginSetting.availability.selectedCount", {
+                                        count: selectedPluginHashes.size,
+                                    })}
+                                </ThemeText>
+                                <View style={styles.selectionActions}>
+                                    {isAvailabilityTesting ? (
+                                        <TextButton
+                                            onPress={() => {
+                                                availabilityAbortRef.current = {
+                                                    canceled: true,
+                                                };
+                                                Toast.success(
+                                                    t("pluginSetting.availability.canceling"),
+                                                );
+                                            }}>
+                                            {t("pluginSetting.availability.cancel")}
+                                        </TextButton>
+                                    ) : (
+                                        <TextButton onPress={onTestAvailabilityClick}>
+                                            {t("pluginSetting.availability.test", {
+                                                count: selectedPluginHashes.size,
+                                            })}
+                                        </TextButton>
+                                    )}
+                                    <TextButton onPress={exitPluginSelectionMode}>
+                                        {t("pluginSetting.availability.finishSelection")}
+                                    </TextButton>
+                                </View>
+                            </View>
+                        ) : null}
                         contentContainerStyle={styles.listContent}
                         ListFooterComponent={<View style={styles.footer} />}
                     />
@@ -788,6 +823,19 @@ const styles = StyleSheet.create({
     },
     warning: {
         marginTop: rpx(16),
+    },
+    selectionBar: {
+        marginHorizontal: rpx(24),
+        marginTop: rpx(24),
+        padding: rpx(20),
+        borderRadius: rpx(12),
+        gap: rpx(12),
+    },
+    selectionActions: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: rpx(24),
     },
     iconAction: {
         flex: 1,

@@ -202,6 +202,10 @@ export interface ILanguageData {
     "pluginSetting.pluginItem.health.archived": string; // 已归档
     "pluginSetting.pluginItem.health.parseError": string; // 加载失败
     "pluginSetting.availability.test": string; // 测试可用性
+    "pluginSetting.availability.selectPlugins": string; // 选择插件
+    "pluginSetting.availability.exitSelection": string; // 退出选择
+    "pluginSetting.availability.selectedCount": string; // 已选 {count} 个插件
+    "pluginSetting.availability.finishSelection": string; // 完成
     "pluginSetting.availability.inputTitle": string; // 输入搜索关键词
     "pluginSetting.availability.inputPlaceholder": string; // 默认使用：音乐
     "pluginSetting.availability.noSelection": string; // 请先勾选要测试的插件
