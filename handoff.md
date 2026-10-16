@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-16
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8 已验收通过；R9 代码实现与静态验证完成，待 Android 真机验收；最终 Android 回归与 R9 验收合并执行。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9 已验收通过；下一阶段为最终 Android 回归。
 
 ## 1. 分支
 
@@ -34,12 +34,23 @@ d58e0ed fix(plugin): stabilize source groups
 a68696d chore: normalize text line endings
 ```
 
-R9 当前开发分支：
+R9 已验收分支：
 
 ```text
 feat/0.6.2-plugin-availability-test
 ```
 
+R9 已提交：
+
+```text
+d72e3f7 feat(plugin): add availability testing
+fbfca97 fix(plugin): refine availability selection
+ed969e9 fix(plugin): relocate batch availability test
+c722322 fix(plugin): optimize availability selection list
+c98c243 fix(plugin): fix list key and selection area
+2a5c377 fix(plugin): keep unchecked plugins metadata only
+67b043c refactor(plugin): move sort entry near installed actions
+``n
 ## 2. R7 收尾结论
 
 已交付：
@@ -86,7 +97,7 @@ R8 真机反馈修复：
 - `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：来源分组入口和概览统计。
 - `src/pages/setting/settingTypes/pluginSetting/views/pluginOriginDetail.tsx`：分组详情与组级操作。
 
-## 4. R9 代码阶段记录（待真机验收）
+## 4. R9 收尾结论
 
 已确认 R9-Q1 到 Q9 执行口径，详见 `docs/fork-requirements.md` 第 20 章。
 
@@ -107,11 +118,16 @@ R8 真机反馈修复：
 关键实现：
 
 - `src/core/pluginAvailability.ts`：探测状态、串行测试和超时判定。
+- `src/core/pluginManager/index.ts`：启动仅恢复元数据，未勾选插件不执行代码。
 - `src/core/pluginManager/health.ts`：双失败直接进入 `quarantined`。
 - `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：勾选、测试入口、取消和汇总。
 - `src/pages/setting/settingTypes/pluginSetting/components/pluginItem.tsx`：勾选框与测试状态标签。
 
-静态验证：
+验收记录：
+
+静态验证通过，Android 真机已由用户构建验收通过。
+
+静态验证命令：
 
 ```powershell
 node node_modules/typescript/bin/tsc --noEmit --pretty false
@@ -122,13 +138,12 @@ git diff --check
 
 ## 5. 下一阶段
 
-1. 用户执行 R9 Android 真机验收。
-2. 根据真机反馈修复后收尾 R9。
-3. 最终 Android 回归与 R9 验收合并执行。
+1. 基于全部已验收需求分支创建最终回归分支。
+2. 执行最终 Android 回归。
 
 ## 6. 验证与约束
 
-R8 收尾验证已通过：
+R9 收尾验证已通过：
 
 ```powershell
 node node_modules/typescript/bin/tsc --noEmit --pretty false
@@ -137,7 +152,7 @@ node node_modules/jest/bin/jest.js --passWithNoTests
 git diff --check
 ```
 
-R8 Android 真机已由用户构建验收通过。
+R9 Android 真机已由用户构建验收通过。
 
 禁止：提交 `run.md` / `testresult.md`、新增运行时依赖、混入当前阶段之外需求、整仓格式化。
 
@@ -147,3 +162,5 @@ R8 Android 真机已由用户构建验收通过。
 - 仓库已提交 `.gitattributes` 统一文本换行规则；Windows 下仍需用 `git diff --cached --check` 复核提交内容。
 - 临时来源展示是纯会话态 atom；歌单偏好持久化但不进入备份；空结果抑制是内存态。
 - 插件来源关系持久化但不进入备份 / 恢复。
+- R9 可用性测试明细和汇总是会话态；双失败写入的 `quarantined` 继续按 R3 持久化。
+- 启动阶段未勾选插件仅恢复元数据；首次服务调用才完整挂载，不参与搜索 / 取源。
