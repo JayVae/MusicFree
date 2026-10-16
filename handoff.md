@@ -1,64 +1,74 @@
 # MusicFree Fork Handoff
 
-更新时间：2026-10-15
-当前状态：R1/R2、R3、R4、R5、R6 已验收通过；第三轮需求澄清完成，下一阶段是 R7。
+更新时间：2026-10-16
+当前状态：R1/R2、R3、R4、R5、R6 已验收通过；R7 代码实现、反馈修复与静态验证完成，代码阶段收尾，Android 真机验收待用户执行；最终 Android 回归顺延到 R8 / R9 之后。
 
 ## 1. 分支
 
-本轮文档分支：
-
-```text
-docs/requirements-round3
-```
-
-R7 开始时从该分支创建：
+R7 当前分支：
 
 ```text
 feat/0.6.2-playback-source-adaptive
 ```
 
-R7 完成后再创建：
+R7 已提交：
+
+```text
+02f25c0 feat: enhance playback source continuity
+59a0c39 fix: clarify batch source selection
+57db54d fix: reuse resolved temporary sources
+```
+
+R8 开始时从 R7 收尾分支创建：
 
 ```text
 feat/0.6.2-plugin-source-groups
 ```
 
-最终 Android 回归排在 R7 / R8 之后。
-
-## 2. 第三轮分类结论
-
-1. R7：临时来源展示、歌单来源偏好、歌单批量临时换源、候选停止条件修订、空结果候选抑制。
-2. R8：本地安装组、手动网络安装组、可选内置组，以及订阅 / 分组内统一状态操作。
-3. 不把空结果直接标记 `userInvalid`；只做临时候选抑制。
-4. 不提供歌单级持久换源配置；R7 的自动偏好和用户主动批量操作是例外。
-5. 组级状态是批量应用既有插件状态，不新增运行状态。
-
-详见：
+R9 开始时从 R8 收尾分支创建：
 
 ```text
-docs/fork-requirements.md 第 19 章
-docs/decisions.md D46-D51
+feat/0.6.2-plugin-availability-test
 ```
 
-## 3. R7 下一阶段要点
+## 2. R7 收尾结论
 
-1. 换源成功后，播放页显示“临时来源：插件名”；不改写歌曲身份。
-2. 记录 `歌单 ID + 原始 platform -> 成功插件` 的歌单内偏好。
-3. 后续同歌单同来源歌曲优先尝试该插件；失败后降级或清理偏好。
-4. 歌单页提供批量临时换源入口，串行执行并反馈结果。
-5. 候选停止条件改为候选耗尽、15 秒预算到期或切歌；取消 5 个上限。
-6. 多次空结果插件临时候选抑制，非空结果或下次启动恢复。
+已交付：
 
-建议先读：
+1. 换源成功后播放页显示临时来源插件名；不修改原始歌曲身份。
+2. 记录 `歌单 ID + 原始 platform -> 成功插件` 的歌单内自动偏好。
+3. 歌单页提供批量临时换源入口；自动推荐默认选中，标题展示预计影响数量，支持串行执行和后台运行。
+4. 批量任务遵守 15 秒单首预算；候选停止条件改为候选耗尽、预算到期或切歌，取消 5 个上限。
+5. 连续空结果只做内存态候选抑制；不标记 `userInvalid`，非空结果或下次启动恢复。
+6. 播放优先复用已解析的临时来源；失败后继续候选流程。
+7. 批量结果弹窗支持后台运行，完成后通过 toast 汇总。
 
-```text
-docs/fork-requirements.md 第 19 章 R7
-docs/decisions.md D46-D49
-```
+关键实现与修复：
+
+- `src/core/playbackSource.ts`：歌单偏好、临时来源 atom、空结果抑制。
+- `src/core/mediaSourceResolver.ts`：候选选择、预算、严格匹配、候选抑制。
+- `src/core/mediaSourceBatch.ts`：批量筛选与串行解析。
+- `src/core/trackPlayer/index.ts`：优先复用临时解析结果并继续失败兜底。
+- `src/pages/musicDetail/components/navBar.tsx`：临时来源展示。
+- `src/pages/sheetDetail/components/navBar.tsx`：批量换源入口。
+- `src/components/dialogs/components/batchSourceDialog.tsx`：结果展示与后台运行。
+
+## 3. 下一阶段
+
+1. R8：插件安装来源分组与组级状态。
+2. R9：插件管理中测试勾选插件可用性并自动标注。
+3. R8 / R9 都完成后执行最终 Android 回归。
+
+R9 已确认基础口径：
+
+- 测试入口作用于插件管理中勾选的插件。
+- 使用搜索和取源作为可用性探测；任一探测成功即视为插件有效。
+- 探测超时 5 秒；搜索和取源都失败时自动置为临时不可用。
+- 其余执行口径见 `docs/fork-requirements.md` 第 20 章；实现前必须先确认。
 
 ## 4. 验证与约束
 
-代码改动后至少执行：
+R7 收尾验证已通过：
 
 ```powershell
 node node_modules/typescript/bin/tsc --noEmit --pretty false
@@ -69,4 +79,10 @@ git diff --check
 
 Android 真机由用户构建验收。
 
-禁止：提交 run.md / testresult.md、新增运行时依赖、混入 R7 / R8 之外需求、整仓格式化。
+禁止：提交 `run.md` / `testresult.md`、新增运行时依赖、混入当前阶段之外需求、整仓格式化。
+
+## 5. 注意事项
+
+- `lint-staged` 钩子可能在 commit 时自动 `git add .`，提交前需确认没有带入 `run.md` / `testresult.md`。
+- Windows CRLF 环境下，`git diff --check` 可能对 LF 文件误报；提交内容用 `git diff --cached --check` 复核。
+- 临时来源展示是纯会话态 atom；歌单偏好持久化但不进入备份；空结果抑制是内存态。
