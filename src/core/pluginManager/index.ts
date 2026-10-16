@@ -214,7 +214,6 @@ class PluginManager implements IPluginManager, IInjectable {
 
             for (let i = 0; i < pluginsFileItems.length; ++i) {
                 const pluginFileItem = pluginsFileItems[i];
-                trace("初始化插件", pluginFileItem);
                 if (
                     pluginFileItem.isFile() &&
                     (pluginFileItem.name?.endsWith?.(".js") ||
@@ -223,33 +222,13 @@ class PluginManager implements IPluginManager, IInjectable {
                     let plugin: Plugin;
                     let isLazyLoad = false;
 
-                    // R6: 获取文件统计信息，用于检测插件文件变更
-                    let fileStats: { mtime: number; size: number } | null = null;
-                    try {
-                        const statResult = await stat(pluginFileItem.path);
-                        fileStats = {
-                            mtime: statResult.mtime,
-                            size: statResult.size,
-                        };
-                    } catch {
-                        // stat 失败时跳过变更检测
-                    }
-
-                    // R6: 元数据缓存有效时，不读取 / eval 插件源码
                     const cachedMeta = safeParse(
                         pluginCacheStore.getString(pluginFileItem.path),
                     );
-                    const cacheStats = cachedMeta?.fileStats;
-                    const cacheValid =
-                        cachedMeta?.name &&
-                        cachedMeta?.hash &&
-                        (!fileStats ||
-                            !cacheStats ||
-                            (cacheStats.mtime === fileStats.mtime &&
-                                cacheStats.size === fileStats.size));
 
-                    if (cacheValid) {
-                        // 元数据先行：仅恢复名称 / hash / supportedMethods 等
+                    // 只要存在可用元数据，启动就只恢复元数据；包括已取消勾选的插件，
+                    // 仅用于管理页展示，不执行插件代码，也不会参与搜索 / 取源。
+                    if (cachedMeta?.name && cachedMeta?.hash) {
                         isLazyLoad = true;
                         cachedMeta.loadFuncCode = async () =>
                             await readFile(pluginFileItem.path, "utf8");
@@ -258,13 +237,23 @@ class PluginManager implements IPluginManager, IInjectable {
                             pluginFileItem.path,
                             cachedMeta,
                         );
+                        trace("插件元数据恢复", {
+                            name: cachedMeta.name,
+                            path: pluginFileItem.path,
+                            enabled: pluginMeta.isPluginEnabled(cachedMeta.name),
+                        });
                     } else {
-                        // 缓存缺失或文件已变更：完整挂载以提取元数据（仅此一次）
+                        // 仅在完全没有历史元数据时读取源码提取平台名等基本信息。
                         const funcCode = await readFile(
                             pluginFileItem.path,
                             "utf8",
                         );
                         plugin = new Plugin(funcCode, pluginFileItem.path);
+                        trace("插件首次元数据提取", {
+                            name: plugin.name,
+                            path: pluginFileItem.path,
+                            enabled: pluginMeta.isPluginEnabled(plugin.name),
+                        });
                     }
 
                     // R6: 挂载前通过元数据 hash 去重
