@@ -1,11 +1,11 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-16
-当前状态：R1/R2、R3、R4、R5、R6 已验收通过；R7 代码实现、反馈修复与静态验证完成，代码阶段收尾，Android 真机验收待用户执行；最终 Android 回归顺延到 R8 / R9 之后。
+当前状态：R1/R2、R3、R4、R5、R6、R7 已验收通过；R8 代码实现与静态验证完成，代码阶段收尾，Android 真机验收待用户执行；最终 Android 回归顺延到 R9 之后。
 
 ## 1. 分支
 
-R7 当前分支：
+R7 已验收分支：
 
 ```text
 feat/0.6.2-playback-source-adaptive
@@ -19,10 +19,16 @@ R7 已提交：
 57db54d fix: reuse resolved temporary sources
 ```
 
-R8 开始时从 R7 收尾分支创建：
+R8 当前分支：
 
 ```text
 feat/0.6.2-plugin-source-groups
+```
+
+R8 代码提交：
+
+```text
+432d9f9 feat(plugin): add source groups
 ```
 
 R9 开始时从 R8 收尾分支创建：
@@ -53,10 +59,27 @@ feat/0.6.2-plugin-availability-test
 - `src/pages/sheetDetail/components/navBar.tsx`：批量换源入口。
 - `src/components/dialogs/components/batchSourceDialog.tsx`：结果展示与后台运行。
 
-## 3. 下一阶段
+## 3. R8 收尾结论
 
-1. R8：插件安装来源分组与组级状态。
-2. R9：插件管理中测试勾选插件可用性并自动标注。
+已交付：
+
+1. 插件来源记录区分订阅、本地、网络和内置；本地 / 网络是逻辑组，不写入 `plugin.subscribeUrl`。
+2. 插件管理页展示来源分组、类型、数量和最近变更时间。
+3. 来源组详情支持整组启用 / 禁用、归档 / 恢复；批量操作应用既有插件状态，单个状态仍可独立调整。
+4. 卸载、替换和更新同步维护来源；更新保留原分组。
+5. 来源关系存于独立 `plugin.origin`，不进入备份 / 恢复。
+
+关键实现：
+
+- `src/core/pluginManager/pluginOrigin.ts`：来源分组模型、原子读取和分组构建。
+- `src/core/pluginManager/index.ts`：安装、更新、卸载来源记录。
+- `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：来源分组入口。
+- `src/pages/setting/settingTypes/pluginSetting/views/pluginOriginDetail.tsx`：分组详情与组级操作。
+
+## 4. 下一阶段
+
+1. R8 Android 真机验收由用户执行。
+2. R9：插件管理中测试勾选插件可用性并自动标注；实现前必须先确认第 20 章剩余口径。
 3. R8 / R9 都完成后执行最终 Android 回归。
 
 R9 已确认基础口径：
@@ -66,9 +89,9 @@ R9 已确认基础口径：
 - 探测超时 5 秒；搜索和取源都失败时自动置为临时不可用。
 - 其余执行口径见 `docs/fork-requirements.md` 第 20 章；实现前必须先确认。
 
-## 4. 验证与约束
+## 5. 验证与约束
 
-R7 收尾验证已通过：
+R8 收尾验证已通过：
 
 ```powershell
 node node_modules/typescript/bin/tsc --noEmit --pretty false
@@ -77,11 +100,11 @@ node node_modules/jest/bin/jest.js --passWithNoTests
 git diff --check
 ```
 
-Android 真机由用户构建验收。
+R8 Android 真机由用户构建验收。
 
 禁止：提交 `run.md` / `testresult.md`、新增运行时依赖、混入当前阶段之外需求、整仓格式化。
 
-## 5. 注意事项
+## 6. 注意事项
 
 - `lint-staged` 钩子可能在 commit 时自动 `git add .`，提交前需确认没有带入 `run.md` / `testresult.md`。
 - Windows CRLF 环境下，`git diff --check` 可能对 LF 文件误报；提交内容用 `git diff --cached --check` 复核。
