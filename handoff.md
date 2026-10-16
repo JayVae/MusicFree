@@ -30,6 +30,7 @@ R8 代码提交：
 ```text
 432d9f9 feat(plugin): add source groups
 a91d236 fix(plugin): clarify group operation risk
+d58e0ed fix(plugin): stabilize source groups
 ```
 
 R9 开始时从 R8 收尾分支创建：
@@ -77,6 +78,13 @@ feat/0.6.2-plugin-availability-test
 - `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：来源分组入口。
 - `src/pages/setting/settingTypes/pluginSetting/views/pluginOriginDetail.tsx`：分组详情与组级操作。
 
+
+R8 真机反馈修复（2026-10-16）：
+
+1. 新增订阅立即展示并自动拉取；失败时保留空订阅组。
+2. 依据 R5 历史订阅记录修正首次启动分组兜底。
+3. 概览健康统计响应式刷新。
+4. 概览数量从健康“可用”改为“已取消勾选”。
 ## 4. 下一阶段
 
 1. R8 Android 真机验收由用户执行。
