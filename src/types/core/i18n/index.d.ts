@@ -201,6 +201,19 @@ export interface ILanguageData {
     "pluginSetting.pluginItem.health.user-invalid": string; // 已标记失效
     "pluginSetting.pluginItem.health.archived": string; // 已归档
     "pluginSetting.pluginItem.health.parseError": string; // 加载失败
+    "pluginSetting.availability.test": string; // 测试可用性
+    "pluginSetting.availability.inputTitle": string; // 输入搜索关键词
+    "pluginSetting.availability.inputPlaceholder": string; // 默认使用：音乐
+    "pluginSetting.availability.noSelection": string; // 请先勾选要测试的插件
+    "pluginSetting.availability.cancel": string; // 取消测试
+    "pluginSetting.availability.canceling": string; // 正在取消，当前请求完成后停止
+    "pluginSetting.availability.status.waiting": string; // 等待测试
+    "pluginSetting.availability.status.testing": string; // 测试中
+    "pluginSetting.availability.status.success": string; // 测试通过
+    "pluginSetting.availability.status.fail": string; // 测试失败
+    "pluginSetting.availability.status.skipped": string; // 已跳过
+    "pluginSetting.availability.completed": string; // 可用性测试完成：成功 {success}，跳过 {skip}
+    "pluginSetting.availability.completedWithFail": string; // 可用性测试完成：成功 {success}，失败 {fail}，跳过 {skip}
     "pluginSetting.pluginItem.health.failureCount": string; // 连续失败次数
     "pluginSetting.pluginItem.status.disabled": string; // 已禁用
     "pluginSetting.pluginItem.options.markInvalid": string; // 标记失效

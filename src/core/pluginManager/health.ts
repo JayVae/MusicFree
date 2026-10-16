@@ -195,6 +195,29 @@ export function removePluginHealth(pluginName?: string | null) {
 export function clearAllPluginHealth() {
     saveHealthRecords({});
 }
+
+/** 可用性测试双探测失败时立即进入既有临时不可用状态。 */
+export function markPluginQuarantined(
+    pluginName?: string | null,
+    pluginHash?: string,
+    reason?: string,
+) {
+    const key = normalizeHealthKey(pluginName);
+    if (!key) {
+        return;
+    }
+
+    const records = { ...getHealthRecords() };
+    records[key] = {
+        status: PluginHealthStatus.Quarantined,
+        consecutiveFailures: (records[key]?.consecutiveFailures ?? 0) + 1,
+        reason: reason?.slice(0, 500) ?? "availability-test-failed",
+        failedAt: Date.now(),
+        pluginHash,
+    };
+    saveHealthRecords(records);
+}
+
 /** 用户手动把插件标记为失效。 */
 export function markPluginInvalid(pluginName?: string | null, pluginHash?: string) {
     const key = normalizeHealthKey(pluginName);

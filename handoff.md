@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-16
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8 已验收通过；下一阶段为 R9，实现前必须先完成第 20 章剩余口径确认；最终 Android 回归顺延到 R9 之后。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8 已验收通过；R9 代码实现与静态验证完成，待 Android 真机验收；最终 Android 回归与 R9 验收合并执行。
 
 ## 1. 分支
 
@@ -34,7 +34,7 @@ d58e0ed fix(plugin): stabilize source groups
 a68696d chore: normalize text line endings
 ```
 
-R9 开始时从 R8 收尾分支创建：
+R9 当前开发分支：
 
 ```text
 feat/0.6.2-plugin-availability-test
@@ -86,20 +86,43 @@ R8 真机反馈修复：
 - `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：来源分组入口和概览统计。
 - `src/pages/setting/settingTypes/pluginSetting/views/pluginOriginDetail.tsx`：分组详情与组级操作。
 
-## 4. 下一阶段
+## 4. R9 代码阶段记录（待真机验收）
 
-1. R9：插件管理中测试勾选插件可用性并自动标注。
-2. R9 实现前必须先确认 `docs/fork-requirements.md` 第 20 章剩余口径。
-3. R9 完成后执行最终 Android 回归。
+已确认 R9-Q1 到 Q9 执行口径，详见 `docs/fork-requirements.md` 第 20 章。
 
-R9 已确认基础口径：
+已实现：
 
-- 测试入口作用于插件管理中勾选的插件。
-- 使用搜索和取源作为可用性探测；任一探测成功即视为插件有效。
-- 探测超时 5 秒；搜索和取源都失败时自动置为临时不可用。
-- 其余执行口径见 `docs/fork-requirements.md` 第 20 章；实现前必须先确认。
+1. 插件管理列表支持勾选插件；维护区提供“测试可用性”和取消入口。
+2. 测试前可输入搜索关键词，为空时使用“音乐”。
+3. 串行探测搜索和取源；搜索非空或取源返回有效 URL 即通过。
+4. 单请求 5 秒超时，单插件总上限 10 秒；双失败一次测试即写入既有 `quarantined`。
+5. 逐插件展示等待 / 测试中 / 通过 / 失败 / 跳过；测试完成展示成功 / 失败 / 跳过汇总。
+6. 已禁用、手动失效、已归档和解析失败插件跳过；测试成功只恢复 `quarantined`。
+7. 测试明细和汇总只保留会话态；取消在当前请求 / 阶段边界生效。
 
-## 5. 验证与约束
+关键实现：
+
+- `src/core/pluginAvailability.ts`：探测状态、串行测试和超时判定。
+- `src/core/pluginManager/health.ts`：双失败直接进入 `quarantined`。
+- `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：勾选、测试入口、取消和汇总。
+- `src/pages/setting/settingTypes/pluginSetting/components/pluginItem.tsx`：勾选框与测试状态标签。
+
+静态验证：
+
+```powershell
+node node_modules/typescript/bin/tsc --noEmit --pretty false
+node node_modules/eslint/bin/eslint.js src/core/pluginAvailability.ts src/core/pluginManager/health.ts src/pages/setting/settingTypes/pluginSetting/components/pluginItem.tsx src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx
+node node_modules/jest/bin/jest.js --passWithNoTests
+git diff --check
+```
+
+## 5. 下一阶段
+
+1. 用户执行 R9 Android 真机验收。
+2. 根据真机反馈修复后收尾 R9。
+3. 最终 Android 回归与 R9 验收合并执行。
+
+## 6. 验证与约束
 
 R8 收尾验证已通过：
 
@@ -114,7 +137,7 @@ R8 Android 真机已由用户构建验收通过。
 
 禁止：提交 `run.md` / `testresult.md`、新增运行时依赖、混入当前阶段之外需求、整仓格式化。
 
-## 6. 注意事项
+## 7. 注意事项
 
 - `lint-staged` 钩子可能在 commit 时自动 `git add .`，提交前需确认没有带入 `run.md` / `testresult.md`。
 - 仓库已提交 `.gitattributes` 统一文本换行规则；Windows 下仍需用 `git diff --cached --check` 复核提交内容。

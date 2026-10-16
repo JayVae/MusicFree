@@ -25,6 +25,8 @@ import { IIconName } from "@/components/base/icon.tsx";
 import { useI18N } from "@/core/i18n";
 import IconButton from "@/components/base/iconButton";
 import useRerender from "@/hooks/useRerender";
+import Checkbox from "@/components/base/checkbox";
+import type { IPluginAvailabilityTestState } from "@/core/pluginAvailability";
 import { useAppConfig } from "@/core/appConfig";
 import { usePluginSubscriptionRecord, useSubscriptionItems } from "@/core/pluginManager/subscription";
 
@@ -33,6 +35,10 @@ interface IPluginItemProps {
     duplicateCount?: number;
     duplicateIndex?: number;
     duplicateSourceGroup?: boolean;
+    selectable?: boolean;
+    selected?: boolean;
+    onSelectToggle?: () => void;
+    availabilityTest?: IPluginAvailabilityTestState;
 }
 
 interface IOption {
@@ -43,7 +49,16 @@ interface IOption {
 }
 
 function _PluginItem(props: IPluginItemProps) {
-    const { plugin, duplicateCount, duplicateIndex, duplicateSourceGroup } = props;
+    const {
+        plugin,
+        duplicateCount,
+        duplicateIndex,
+        duplicateSourceGroup,
+        selectable,
+        selected,
+        onSelectToggle,
+        availabilityTest,
+    } = props;
     const colors = useColors();
     const enabled = usePluginEnabled(plugin);
     const health = usePluginHealth(plugin.name);
@@ -275,11 +290,24 @@ function _PluginItem(props: IPluginItemProps) {
             ]}>
             <View style={styles.header}>
                 <View style={styles.headerPluginContainer}>
+                    {selectable ? (
+                        <Checkbox
+                            checked={selected}
+                            onPress={onSelectToggle}
+                        />
+                    ) : null}
                     <ThemeText
                         numberOfLines={1}
                         fontSize="title">
                         {plugin.name}
                     </ThemeText>
+                    {
+                        availabilityTest ? (
+                            <Tag tagName={t(
+                                `pluginSetting.availability.status.${availabilityTest.status}` as any,
+                            )} />
+                        ) : null
+                    }
                     {
                         healthStatus !== PluginHealthStatus.Available ? (
                             <Tag tagName={t(`pluginSetting.pluginItem.health.${healthStatus}` as any)} />
@@ -426,7 +454,11 @@ function _PluginItem(props: IPluginItemProps) {
 }
 
 const PluginItem = memo(_PluginItem, (prev, curr) => {
-    return prev.plugin === curr.plugin;
+    return prev.plugin === curr.plugin &&
+        prev.selectable === curr.selectable &&
+        prev.selected === curr.selected &&
+        prev.onSelectToggle === curr.onSelectToggle &&
+        prev.availabilityTest === curr.availabilityTest;
 });
 export default PluginItem;
 

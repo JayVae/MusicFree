@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { SectionList, StyleSheet, View } from "react-native";
 import rpx from "@/utils/rpx";
 import * as DocumentPicker from "expo-document-picker";
@@ -36,6 +36,12 @@ import PluginItem from "../components/pluginItem";
 import { IIconName } from "@/components/base/icon.tsx";
 import { IInstallPluginResult } from "@/types/core/pluginManager";
 import { useI18N } from "@/core/i18n";
+import {
+    DEFAULT_AVAILABILITY_QUERY,
+    PluginAvailabilityStatus,
+    runPluginAvailabilityTests,
+    usePluginAvailabilityStates,
+} from "@/core/pluginAvailability";
 
 interface PluginGroup {
     name: string;
@@ -103,6 +109,10 @@ export default function PluginList() {
     const colors = useColors();
     const { t } = useI18N();
     const [loading, setLoading] = useState(false);
+    const [selectedPluginHashes, setSelectedPluginHashes] = useState<Set<string>>(new Set());
+    const [isAvailabilityTesting, setIsAvailabilityTesting] = useState(false);
+    const availabilityAbortRef = useRef({ canceled: false });
+    const availabilityStates = usePluginAvailabilityStates();
     const [maintenanceExpanded, setMaintenanceExpanded] = useState(false);
     const navigator = useNavigation<any>();
     const rawSubscriptions = useAppConfig("plugin.subscribeUrl");
@@ -182,6 +192,86 @@ export default function PluginList() {
     const navigate = useCallback((path: string) => {
         navigator.navigate(path);
     }, [navigator]);
+
+    const togglePluginSelected = useCallback((pluginHash: string) => {
+        setSelectedPluginHashes(previous => {
+            const next = new Set(previous);
+            if (next.has(pluginHash)) {
+                next.delete(pluginHash);
+            } else {
+                next.add(pluginHash);
+            }
+            return next;
+        });
+    }, []);
+
+    const startAvailabilityTest = (keyword: string) => {
+        if (!selectedPluginHashes.size) {
+            Toast.warn(t("pluginSetting.availability.noSelection"));
+            return;
+        }
+        if (isAvailabilityTesting) {
+            return;
+        }
+
+        const selectedPlugins = plugins.filter(plugin =>
+            selectedPluginHashes.has(plugin.hash)
+        );
+        availabilityAbortRef.current = { canceled: false };
+        setIsAvailabilityTesting(true);
+        runPluginAvailabilityTests({
+            plugins: selectedPlugins,
+            keyword,
+            shouldAbort: () => availabilityAbortRef.current.canceled,
+        }).then(results => {
+            if (availabilityAbortRef.current.canceled) {
+                return;
+            }
+            const successCount = results.filter(
+                it => it.status === PluginAvailabilityStatus.Success,
+            ).length;
+            const failCount = results.filter(
+                it => it.status === PluginAvailabilityStatus.Fail,
+            ).length;
+            const skipCount = results.filter(
+                it => it.status === PluginAvailabilityStatus.Skipped,
+            ).length;
+            if (failCount) {
+                Toast.warn(t("pluginSetting.availability.completedWithFail", {
+                    success: successCount,
+                    fail: failCount,
+                    skip: skipCount,
+                }));
+            } else {
+                Toast.success(t("pluginSetting.availability.completed", {
+                    success: successCount,
+                    skip: skipCount,
+                }));
+            }
+        }).catch((e: any) => {
+            Toast.warn(t("toast.unknownError", {
+                reason: e?.message ?? e,
+            }));
+        }).finally(() => {
+            setIsAvailabilityTesting(false);
+        });
+    };
+
+    const onTestAvailabilityClick = () => {
+        if (!selectedPluginHashes.size) {
+            Toast.warn(t("pluginSetting.availability.noSelection"));
+            return;
+        }
+        showPanel("SimpleInput", {
+            title: t("pluginSetting.availability.inputTitle"),
+            placeholder: t("pluginSetting.availability.inputPlaceholder"),
+            maxLength: 40,
+            async onOk(text, closePanel) {
+                closePanel();
+                startAvailabilityTest(text.trim() || DEFAULT_AVAILABILITY_QUERY);
+            },
+        });
+    };
 
     async function onInstallFromLocalClick() {
         try {
@@ -494,6 +584,27 @@ export default function PluginList() {
                                 onPress={onUpdateAllClick}
                             />
                             <IconAction
+                                icon="magnifying-glass"
+                                title={t("pluginSetting.availability.test", {
+                                    count: selectedPluginHashes.size,
+                                })}
+                                onPress={onTestAvailabilityClick}
+                            />
+                            {isAvailabilityTesting ? (
+                                <IconAction
+                                    icon="x-mark"
+                                    title={t("pluginSetting.availability.cancel")}
+                                    onPress={() => {
+                                        availabilityAbortRef.current = {
+                                            canceled: true,
+                                        };
+                                        Toast.success(
+                                            t("pluginSetting.availability.canceling"),
+                                        );
+                                    }}
+                                />
+                            ) : null}
+                            <IconAction
                                 icon="arrow-path"
                                 title={t("pluginSetting.fabOptions.updateSubscription")}
                                 onPress={onUpdateSubscriptionClick}
@@ -533,6 +644,10 @@ export default function PluginList() {
                             duplicateSourceGroup={duplicateSourceNames.has(
                                 plugin.name,
                             )}
+                            selectable
+                            selected={selectedPluginHashes.has(plugin.hash)}
+                            onSelectToggle={() => togglePluginSelected(plugin.hash)}
+                            availabilityTest={availabilityStates[plugin.hash]}
                         />
                     ))}
                 </View>
