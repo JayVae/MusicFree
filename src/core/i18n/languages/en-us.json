@@ -176,6 +176,8 @@
     "pluginSetting.fabOptions.updateAllPlugins": "Update All Plugins",
     "pluginSetting.fabOptions.updateSubscription": "Update Subscription",
     "pluginSetting.availability.test": "Test Availability ({count} selected)",
+    "pluginSetting.availability.batchTest": "Batch Test Plugins",
+    "pluginSetting.availability.resultSummary": "Test results: {summary}",
     "pluginSetting.availability.selectPlugins": "Select Plugins",
     "pluginSetting.availability.exitSelection": "Exit Selection",
     "pluginSetting.availability.selectedCount": "{count} plugins selected",

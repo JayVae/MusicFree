@@ -186,6 +186,22 @@ export default function PluginList() {
     const disabledCount = plugins.filter(plugin =>
         !enabledStates[plugin.name],
     ).length;
+    const availabilitySummary = useMemo(() => {
+        const currentHashes = new Set(plugins.map(plugin => plugin.hash));
+        const states = Object.entries(availabilityStates)
+            .filter(([pluginHash]) => currentHashes.has(pluginHash))
+            .map(([, state]) => state);
+
+        return {
+            total: states.length,
+            waiting: states.filter(it => it.status === PluginAvailabilityStatus.Waiting).length,
+            testing: states.filter(it => it.status === PluginAvailabilityStatus.Testing).length,
+            success: states.filter(it => it.status === PluginAvailabilityStatus.Success).length,
+            fail: states.filter(it => it.status === PluginAvailabilityStatus.Fail).length,
+            skipped: states.filter(it => it.status === PluginAvailabilityStatus.Skipped).length,
+        };
+    }, [availabilityStates, plugins]);
+
     const invalidCount = plugins.filter(plugin =>
         (healthRecords[plugin.name]?.status ??
             PluginHealthStatus.Available) === PluginHealthStatus.UserInvalid
@@ -596,13 +612,6 @@ export default function PluginList() {
                                 onPress={onUpdateAllClick}
                             />
                             <IconAction
-                                icon={isSelectingPlugins ? "x-mark" : "check-circle-outline"}
-                                title={isSelectingPlugins
-                                    ? t("pluginSetting.availability.exitSelection")
-                                    : t("pluginSetting.availability.selectPlugins")}
-                                onPress={togglePluginSelectionMode}
-                            />
-                            <IconAction
                                 icon="arrow-path"
                                 title={t("pluginSetting.fabOptions.updateSubscription")}
                                 onPress={onUpdateSubscriptionClick}
@@ -679,60 +688,122 @@ export default function PluginList() {
                     <SectionList
                         sections={sections as any}
                         keyExtractor={(item, index) => `${index}`}
-                        renderSectionHeader={({ section }) => (
-                            <ThemeText
-                                fontWeight="bold"
-                                style={styles.sectionHeader}>
-                                {section.title}
-                            </ThemeText>
-                        )}
+                        renderSectionHeader={({ section }) => {
+                            if ((section as any).key !== "installed") {
+                                return (
+                                    <ThemeText
+                                        fontWeight="bold"
+                                        style={styles.sectionHeader}>
+                                        {section.title}
+                                    </ThemeText>
+                                );
+                            }
+                            return (
+                                <AvailabilitySectionHeader
+                                    title={section.title}
+                                    selectedCount={selectedPluginHashes.size}
+                                    isSelecting={isSelectingPlugins}
+                                    isTesting={isAvailabilityTesting}
+                                    summary={availabilitySummary}
+                                    colors={colors}
+                                    t={t}
+                                    onSelectToggle={togglePluginSelectionMode}
+                                    onTest={onTestAvailabilityClick}
+                                    onCancel={() => {
+                                        availabilityAbortRef.current = { canceled: true };
+                                        Toast.success(t("pluginSetting.availability.canceling"));
+                                    }}
+                                    onFinish={exitPluginSelectionMode}
+                                />
+                            );
+                        }}
                         renderItem={({ section, item, index }) =>
                             (section as any).renderItem({ item, index })
                         }
                         ListEmptyComponent={Empty}
-                        ListHeaderComponent={isSelectingPlugins ? (
-                            <View
-                                style={[
-                                    styles.selectionBar,
-                                    { backgroundColor: colors.card },
-                                ]}>
-                                <ThemeText fontSize="subTitle">
-                                    {t("pluginSetting.availability.selectedCount", {
-                                        count: selectedPluginHashes.size,
-                                    })}
-                                </ThemeText>
-                                <View style={styles.selectionActions}>
-                                    {isAvailabilityTesting ? (
-                                        <TextButton
-                                            onPress={() => {
-                                                availabilityAbortRef.current = {
-                                                    canceled: true,
-                                                };
-                                                Toast.success(
-                                                    t("pluginSetting.availability.canceling"),
-                                                );
-                                            }}>
-                                            {t("pluginSetting.availability.cancel")}
-                                        </TextButton>
-                                    ) : (
-                                        <TextButton onPress={onTestAvailabilityClick}>
-                                            {t("pluginSetting.availability.test", {
-                                                count: selectedPluginHashes.size,
-                                            })}
-                                        </TextButton>
-                                    )}
-                                    <TextButton onPress={exitPluginSelectionMode}>
-                                        {t("pluginSetting.availability.finishSelection")}
-                                    </TextButton>
-                                </View>
-                            </View>
-                        ) : null}
                         contentContainerStyle={styles.listContent}
                         ListFooterComponent={<View style={styles.footer} />}
                     />
                 )}
             </HorizontalSafeAreaView>
         </>
+    );
+}
+
+function AvailabilitySectionHeader(props: {
+    title: string;
+    selectedCount: number;
+    isSelecting: boolean;
+    isTesting: boolean;
+    summary: {
+        total: number;
+        waiting: number;
+        testing: number;
+        success: number;
+        fail: number;
+        skipped: number;
+    };
+    colors: any;
+    t: (key: any, options?: any) => string;
+    onSelectToggle: () => void;
+    onTest: () => void;
+    onCancel: () => void;
+    onFinish: () => void;
+}) {
+    const { colors, summary, t } = props;
+    return (
+        <View>
+            <ThemeText fontWeight="bold" style={styles.sectionHeader}>
+                {props.title}
+            </ThemeText>
+            <View style={[styles.batchTestPanel, { backgroundColor: colors.card }]}>
+                <IconAction
+                    icon="magnifying-glass"
+                    title={t("pluginSetting.availability.batchTest")}
+                    onPress={props.onSelectToggle}
+                />
+                {props.isSelecting ? (
+                    <View style={styles.selectionActions}>
+                        <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                            {t("pluginSetting.availability.selectedCount", {
+                                count: props.selectedCount,
+                            })}
+                        </ThemeText>
+                        <View style={styles.selectionActions}>
+                            {props.isTesting ? (
+                                <TextButton onPress={props.onCancel}>
+                                    {t("pluginSetting.availability.cancel")}
+                                </TextButton>
+                            ) : (
+                                <TextButton onPress={props.onTest}>
+                                    {t("pluginSetting.availability.test", {
+                                        count: props.selectedCount,
+                                    })}
+                                </TextButton>
+                            )}
+                            <TextButton onPress={props.onFinish}>
+                                {t("pluginSetting.availability.finishSelection")}
+                            </TextButton>
+                        </View>
+                    </View>
+                ) : null}
+                {summary.total ? (
+                    <View style={styles.availabilityResult}>
+                        <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                            {t("pluginSetting.availability.resultSummary", {
+                                summary: [
+                                    `${t("pluginSetting.availability.status.waiting")} ${summary.waiting}`,
+                                    `${t("pluginSetting.availability.status.testing")} ${summary.testing}`,
+                                    `${t("pluginSetting.availability.status.success")} ${summary.success}`,
+                                    `${t("pluginSetting.availability.status.fail")} ${summary.fail}`,
+                                    `${t("pluginSetting.availability.status.skipped")} ${summary.skipped}`,
+                                ].join(" · "),
+                            })}
+                        </ThemeText>
+                    </View>
+                ) : null}
+            </View>
+        </View>
     );
 }
 
@@ -824,18 +895,23 @@ const styles = StyleSheet.create({
     warning: {
         marginTop: rpx(16),
     },
-    selectionBar: {
+    batchTestPanel: {
         marginHorizontal: rpx(24),
-        marginTop: rpx(24),
-        padding: rpx(20),
+        marginBottom: rpx(12),
         borderRadius: rpx(12),
-        gap: rpx(12),
+        overflow: "hidden",
     },
     selectionActions: {
         flexDirection: "row",
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
         alignItems: "center",
-        gap: rpx(24),
+        gap: rpx(16),
+        paddingHorizontal: rpx(16),
+        paddingBottom: rpx(12),
+    },
+    availabilityResult: {
+        paddingHorizontal: rpx(16),
+        paddingBottom: rpx(16),
     },
     iconAction: {
         flex: 1,

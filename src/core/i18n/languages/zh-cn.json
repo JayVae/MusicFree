@@ -176,6 +176,8 @@
     "pluginSetting.fabOptions.updateAllPlugins": "更新全部插件",
     "pluginSetting.fabOptions.updateSubscription": "更新订阅",
     "pluginSetting.availability.test": "测试可用性（已选 {count}）",
+    "pluginSetting.availability.batchTest": "批量测试插件",
+    "pluginSetting.availability.resultSummary": "测试结果：{summary}",
     "pluginSetting.availability.selectPlugins": "选择插件",
     "pluginSetting.availability.exitSelection": "退出选择",
     "pluginSetting.availability.selectedCount": "已选 {count} 个插件",

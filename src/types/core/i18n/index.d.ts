@@ -202,6 +202,8 @@ export interface ILanguageData {
     "pluginSetting.pluginItem.health.archived": string; // 已归档
     "pluginSetting.pluginItem.health.parseError": string; // 加载失败
     "pluginSetting.availability.test": string; // 测试可用性
+    "pluginSetting.availability.batchTest": string; // 批量测试插件
+    "pluginSetting.availability.resultSummary": string; // 测试结果：{summary}
     "pluginSetting.availability.selectPlugins": string; // 选择插件
     "pluginSetting.availability.exitSelection": string; // 退出选择
     "pluginSetting.availability.selectedCount": string; // 已选 {count} 个插件

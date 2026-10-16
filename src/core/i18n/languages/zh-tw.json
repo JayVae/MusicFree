@@ -176,6 +176,8 @@
     "pluginSetting.fabOptions.updateAllPlugins": "更新全部外掛",
     "pluginSetting.fabOptions.updateSubscription": "更新訂閱",
     "pluginSetting.availability.test": "測試可用性（已選 {count}）",
+    "pluginSetting.availability.batchTest": "批量測試外掛",
+    "pluginSetting.availability.resultSummary": "測試結果：{summary}",
     "pluginSetting.availability.selectPlugins": "選擇外掛",
     "pluginSetting.availability.exitSelection": "退出選擇",
     "pluginSetting.availability.selectedCount": "已選 {count} 個外掛",
