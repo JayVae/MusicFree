@@ -662,22 +662,6 @@ export default function PluginList() {
                 </View>
             ),
         },
-        {
-            key: "sort",
-            title: t("pluginSetting.section.sort"),
-            data: [1],
-            renderItem: () => (
-                <ListItem
-                    withHorizontalPadding
-                    onPress={() => navigate("/pluginsetting/sort")}>
-                    <ListItem.Content
-                        title={t("pluginSetting.sort.manage")}
-                        description={t("pluginSetting.sort.manageTip")}
-                    />
-                    <ListItem.ListItemIcon icon="skip-right" position="right" />
-                </ListItem>
-            ),
-        },
     ];
 
     return (
@@ -721,6 +705,7 @@ export default function PluginList() {
                                         Toast.success(t("pluginSetting.availability.canceling"));
                                     }}
                                     onFinish={exitPluginSelectionMode}
+                                    onOpenSort={() => navigate("/pluginsetting/sort")}
                                 />
                             );
                         }}
@@ -756,6 +741,7 @@ function AvailabilitySectionHeader(props: {
     onTest: () => void;
     onCancel: () => void;
     onFinish: () => void;
+    onOpenSort: () => void;
 }) {
     const { colors, summary, t } = props;
     return (
@@ -764,6 +750,16 @@ function AvailabilitySectionHeader(props: {
                 {props.title}
             </ThemeText>
             <View style={[styles.batchTestPanel, { backgroundColor: colors.card }]}>
+                <ListItem
+                    withHorizontalPadding
+                    style={styles.iconAction}
+                    onPress={props.onOpenSort}>
+                    <ListItem.Content
+                        title={t("pluginSetting.sort.manage")}
+                        description={t("pluginSetting.sort.manageTip")}
+                    />
+                    <ListItem.ListItemIcon icon="skip-right" position="right" />
+                </ListItem>
                 <IconAction
                     icon="magnifying-glass"
                     title={t("pluginSetting.availability.batchTest")}
