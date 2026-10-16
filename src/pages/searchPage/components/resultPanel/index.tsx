@@ -4,7 +4,8 @@
 import React, { memo, useState } from "react";
 import { Text } from "react-native";
 import rpx, { vw } from "@/utils/rpx";
-import { SceneMap, TabBar, TabView } from "react-native-tab-view";
+import { SceneMap, TabView } from "react-native-tab-view";
+import { CompatTabBar } from "@/components/base/compatTabBar";
 import ResultSubPanel from "./resultSubPanel";
 import results from "./results";
 import { fontWeightConst } from "@/constants/uiConst";
@@ -38,7 +39,7 @@ function ResultPanel() {
                 routes,
             }}
             renderTabBar={props => (
-                <TabBar
+                <CompatTabBar
                     {...props}
                     scrollEnabled
                     style={{

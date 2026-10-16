@@ -44,6 +44,15 @@ class LyricManager implements IInjectable {
 
     private lyricParser: LyricParser | null = null;
 
+    // R6 (D41): 歌词相似搜索单飞任务表，同一歌曲同一时刻只保留一个搜索
+    private similarLyricTasks = new Map<string, Promise<ILyric.ILyricSource | null>>();
+    // R6 (D41): 歌词相似搜索结果缓存，按歌曲身份缓存
+    private similarLyricCache = new Map<string, ILyric.ILyricSource | null>();
+    // R6 (D41): 启动图是否已隐藏
+    private splashHidden = false;
+    // R6 (D41): 启动图隐藏前挂起的初始刷新
+    private pendingInitialRefresh = false;
+
 
     get currentLyricItem() {
         return getDefaultStore().get(currentLyricItemAtom);
@@ -119,7 +128,23 @@ class LyricManager implements IInjectable {
             );
         }
 
-        this.refreshLyric(true);
+        // R6 (D41): 启动图隐藏后再刷新歌词，避免启动阶段触发相似歌词搜索
+        if (this.splashHidden) {
+            this.refreshLyric(true);
+        } else {
+            this.pendingInitialRefresh = true;
+        }
+    }
+
+    /**
+     * R6 (D41): 启动图隐藏后调用，触发挂起的歌词刷新
+     */
+    onSplashHidden() {
+        this.splashHidden = true;
+        if (this.pendingInitialRefresh) {
+            this.pendingInitialRefresh = false;
+            this.refreshLyric(true);
+        }
     }
 
     associateLyric(musicItem: IMusic.IMusicItem, linkToMusicItem: ICommon.IMediaBase) {
@@ -277,7 +302,7 @@ class LyricManager implements IInjectable {
                 // 重置歌词状态
                 this.setLyricAsLoadingState();
 
-                lrcSource = await this.searchSimilarLyric(currentMusicItem);
+                lrcSource = await this.searchSimilarLyricSingleFlight(currentMusicItem);
             }
 
             // 切换到其他歌曲了, 直接返回
@@ -330,6 +355,40 @@ class LyricManager implements IInjectable {
                 this.setLyricAsNoLyricState();
             }
         }
+    }
+
+    /**
+     * 获取歌曲缓存 key（platform + id + title + artist）
+     */
+    private getMusicLyricCacheKey(musicItem: IMusic.IMusicItem) {
+        return [musicItem.platform, musicItem.id, musicItem.title, musicItem.artist].join("|");
+    }
+
+    /**
+     * R6 (D41): 相似歌词搜索单飞入口。
+     * 同一歌曲同一时刻只保留一个搜索任务；结果按歌曲身份缓存。
+     */
+    private async searchSimilarLyricSingleFlight(musicItem: IMusic.IMusicItem) {
+        const cacheKey = this.getMusicLyricCacheKey(musicItem);
+
+        if (this.similarLyricCache.has(cacheKey)) {
+            return this.similarLyricCache.get(cacheKey)!;
+        }
+        const existingTask = this.similarLyricTasks.get(cacheKey);
+        if (existingTask) {
+            return existingTask;
+        }
+
+        const task = this.searchSimilarLyric(musicItem)
+            .catch(() => null)
+            .finally(() => {
+                this.similarLyricTasks.delete(cacheKey);
+            });
+        this.similarLyricTasks.set(cacheKey, task);
+
+        const result = await task;
+        this.similarLyricCache.set(cacheKey, result);
+        return result;
     }
 
     /**

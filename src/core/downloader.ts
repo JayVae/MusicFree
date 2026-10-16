@@ -14,6 +14,11 @@ import { nanoid } from "nanoid";
 import path from "path-browserify";
 import { useEffect, useState } from "react";
 import { copyFile, downloadFile, exists, unlink } from "react-native-fs";
+import {
+    markDownloadCompleted,
+    markDownloadFailed,
+    recordDownloadStarted,
+} from "./downloadHistory";
 import LocalMusicSheet from "./localMusicSheet";
 import { IPluginManager } from "@/types/core/pluginManager";
 
@@ -73,6 +78,10 @@ interface IDownloadTaskInfo {
     downloadedSize?: number;
     // 音乐信息
     musicItem: IMusic.IMusicItem;
+    // 任务创建时间
+    createdAt?: number;
+    // 关联的下载历史记录 key
+    historyKey?: string;
     // 如果下载失败，下载失败的原因
     errorReason?: DownloadFailReason;
 }
@@ -125,24 +134,54 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
 
     // 开始下载
     private markTaskAsStarted(musicItem: IMusic.IMusicItem) {
+        const task = downloadTasks.get(getMediaUniqueKey(musicItem));
+        const createdAt = task?.createdAt ?? Date.now();
+        const historyKey = recordDownloadStarted({
+            mediaKey: getMediaUniqueKey(musicItem),
+            musicItem,
+            quality: task?.quality,
+            filename: task?.filename,
+            pluginName: this.pluginManagerService.getByName(musicItem.platform)?.name,
+            createdAt,
+        });
         this.downloadingCount++;
         this.updateDownloadTask(musicItem, {
             status: DownloadStatus.Preparing,
+            createdAt,
+            historyKey,
         });
     }
 
-    private markTaskAsCompleted(musicItem: IMusic.IMusicItem) {
+    private markTaskAsCompleted(
+        musicItem: IMusic.IMusicItem,
+        result: {
+            filename: string;
+            localPath: string;
+        },
+    ) {
         this.downloadingCount--;
-        this.updateDownloadTask(musicItem, {
+        const task = this.updateDownloadTask(musicItem, {
             status: DownloadStatus.Completed,
+        });
+        markDownloadCompleted({
+            historyKey: task.historyKey,
+            filename: result.filename,
+            localPath: result.localPath,
+            fileSize: task.fileSize,
+            downloadedSize: task.downloadedSize,
         });
     }
 
     private markTaskAsError(musicItem: IMusic.IMusicItem, reason: DownloadFailReason, error?: Error) {
         this.downloadingCount--;
-        this.updateDownloadTask(musicItem, {
+        const task = this.updateDownloadTask(musicItem, {
             status: DownloadStatus.Error,
             errorReason: reason,
+        });
+        markDownloadFailed({
+            historyKey: task.historyKey,
+            failReason: reason,
+            failMessage: error?.message,
         });
         this.emit(DownloaderEvent.DownloadTaskError, reason, musicItem, error);
     }
@@ -294,7 +333,7 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
                 await mkdirR(folder);
             }
         } catch (e: any) {
-            this.emit(DownloaderEvent.DownloadTaskError, DownloadFailReason.NoWritePermission, musicItem, e);
+            this.markTaskAsError(musicItem, DownloadFailReason.NoWritePermission, e);
             return;
         }
 
@@ -339,7 +378,10 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
                 localPath: targetDownloadPath,
             });
 
-            this.markTaskAsCompleted(musicItem);
+            this.markTaskAsCompleted(musicItem, {
+                filename: path.basename(targetDownloadPath),
+                localPath: targetDownloadPath,
+            });
         } catch (e: any) {
             this.markTaskAsError(musicItem, DownloadFailReason.Unknown, e);
         }
@@ -392,6 +434,7 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
                 filename: Downloader.generateFilename(m),
                 quality: quality,
                 musicItem: m,
+                createdAt: Date.now(),
             });
 
             return true;

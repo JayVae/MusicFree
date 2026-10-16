@@ -69,7 +69,8 @@ export function ToastBaseComponent() {
         if (activeToast) {
             toastAnim.value = withTiming(1, timingConfig.animationSlow, () => {
                 toastAnim.value = withDelay(
-                    activeToast.duration || 1200,
+                    activeToast.duration ||
+                    (activeToast.actionText ? 6000 : 1200),
                     withTiming(0, timingConfig.animationSlow, finished => {
                         if (finished) {
                             runOnJS(setNextToast)();
@@ -78,7 +79,7 @@ export function ToastBaseComponent() {
                 );
             });
         }
-    }, [activeToast]);
+    }, [activeToast, setNextToast, toastAnim]);
 
     function removeCurrentToast() {
         if (toastAnim.value === 1) {

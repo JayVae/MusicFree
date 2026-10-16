@@ -326,4 +326,6 @@ export default async function () {
     // 隐藏开屏动画
     console.log("HIDE");
     await SplashScreen.hideAsync();
+    // R6 (D41): 启动图隐藏后触发歌词刷新
+    lyricManager.onSplashHidden();
 }

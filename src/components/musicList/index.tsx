@@ -132,6 +132,7 @@ export default function MusicList(props: IMusicListProps) {
                                     TrackPlayer.playWithReplacePlayList(
                                         musicItem,
                                         musicList ?? [musicItem],
+                                        musicSheet ? { sheetId: musicSheet.id } : undefined,
                                     );
                                 }
                             }}

@@ -7,6 +7,7 @@ export interface ILanguageData {
     "common.theme": string; // 主题
     "common.other": string; // 其他
     "common.cancel": string; // 取消
+    "common.close": string; // 关闭
     "common.about": string; // 关于
     "common.batchEdit": string; // 批量编辑
     "common.selectAll": string; // 全选
@@ -138,6 +139,8 @@ export interface ILanguageData {
     "sheetDetail.editSheetInfo": string; // 编辑歌单信息
     "sheetDetail.batchEditMusic": string; // 批量编辑音乐
     "sheetDetail.sortMusic": string; // 排序音乐
+    "sheetDetail.batchChangeSource": string; // 批量临时换源
+    "sheetDetail.batchChangeSourceWithCount": string; // 批量临时换源（含数量）
     "sheetDetail.sortMusicOption.byTitle": string; // 按标题排序
     "sheetDetail.sortMusicOption.byArtist": string; // 按艺术家排序
     "sheetDetail.sortMusicOption.byAlbum": string; // 按专辑排序
@@ -159,6 +162,16 @@ export interface ILanguageData {
     "downloading.downloadStatus.downloadProgress": string; // 下载进度
     "downloading.downloadStatus.pending": string; // 等待中
     "downloading.downloadStatus.preparing": string; // 准备中
+    "downloading.filter.all": string; // 全部
+    "downloading.filter.active": string; // 进行中
+    "downloading.filter.success": string; // 成功
+    "downloading.filter.failed": string; // 失败
+    "downloading.history.clear": string; // 清空下载历史
+    "downloading.history.fileMissing": string; // 文件已不存在
+    "downloading.downloadFailReason.networkOffline": string; // 网络已断开
+    "downloading.downloadFailReason.notAllowInCellular": string; // 当前网络下不允许下载
+    "downloading.downloadFailReason.interrupted": string; // 下载已中断
+    "downloading.downloadFailReason.unknownWithDetail": string; // 未知错误详情
 
     // 艺术家详情相关
     "artistDetail.fansCount": string; // 粉丝数量
@@ -183,6 +196,37 @@ export interface ILanguageData {
     "pluginSetting.pluginItem.options.importSheetPlaceHolder": string; // 导入歌单链接
     "pluginSetting.pluginItem.options.importSheetDialogContent": string; // 导入歌单对话框内容
     "pluginSetting.pluginItem.options.userVariables": string; // 用户变量
+    "pluginSetting.pluginItem.health.available": string; // 正常
+    "pluginSetting.pluginItem.health.quarantined": string; // 临时不可用
+    "pluginSetting.pluginItem.health.user-invalid": string; // 已标记失效
+    "pluginSetting.pluginItem.health.archived": string; // 已归档
+    "pluginSetting.pluginItem.health.parseError": string; // 加载失败
+    "pluginSetting.availability.test": string; // 测试可用性
+    "pluginSetting.availability.batchTest": string; // 批量测试插件
+    "pluginSetting.availability.resultSummary": string; // 测试结果：{summary}
+    "pluginSetting.availability.selectPlugins": string; // 选择插件
+    "pluginSetting.availability.exitSelection": string; // 退出选择
+    "pluginSetting.availability.selectedCount": string; // 已选 {count} 个插件
+    "pluginSetting.availability.finishSelection": string; // 完成
+    "pluginSetting.availability.inputTitle": string; // 输入搜索关键词
+    "pluginSetting.availability.inputPlaceholder": string; // 默认使用：音乐
+    "pluginSetting.availability.noSelection": string; // 请先勾选要测试的插件
+    "pluginSetting.availability.cancel": string; // 取消测试
+    "pluginSetting.availability.canceling": string; // 正在取消，当前请求完成后停止
+    "pluginSetting.availability.status.waiting": string; // 等待测试
+    "pluginSetting.availability.status.testing": string; // 测试中
+    "pluginSetting.availability.status.success": string; // 测试通过
+    "pluginSetting.availability.status.fail": string; // 测试失败
+    "pluginSetting.availability.status.skipped": string; // 已跳过
+    "pluginSetting.availability.completed": string; // 可用性测试完成：成功 {success}，跳过 {skip}
+    "pluginSetting.availability.completedWithFail": string; // 可用性测试完成：成功 {success}，失败 {fail}，跳过 {skip}
+    "pluginSetting.pluginItem.health.failureCount": string; // 连续失败次数
+    "pluginSetting.pluginItem.status.disabled": string; // 已禁用
+    "pluginSetting.pluginItem.options.markInvalid": string; // 标记失效
+    "pluginSetting.pluginItem.options.markInvalidContent": string; // 标记失效确认
+    "pluginSetting.pluginItem.options.archivePlugin": string; // 归档插件
+    "pluginSetting.pluginItem.options.archivePluginContent": string; // 归档插件确认
+    "pluginSetting.pluginItem.options.restorePlugin": string; // 恢复插件
     "pluginSetting.pluginItem.versionHint": string; // 版本提示
     "pluginSetting.pluginItem.author": string; // 作者
     "pluginSetting.menu.subscriptionSetting": string; // 订阅设置
@@ -199,6 +243,66 @@ export interface ILanguageData {
     "pluginSetting.fabOptions.updateSubscription": string; // 更新订阅
     "pluginSetting.failReason": string; // 失败原因
     "pluginSetting.pluginInstallFailedDialogContent": string; // 插件安装失败对话框内容
+    "pluginSetting.pluginItem.duplicateGroup": string; // 同名插件分组
+    "pluginSetting.pluginItem.duplicateSource": string; // 疑似重复音源
+    "pluginSetting.pluginItem.subscriptionMissing": string; // 订阅中已不存在
+    "pluginSetting.pluginItem.subscriptionSource": string; // 订阅来源
+    "pluginSetting.section.overview": string; // 概览
+    "pluginSetting.section.installed": string; // 已安装插件
+    "pluginSetting.section.subscription": string; // 订阅管理
+    "pluginSetting.section.sourceGroups": string; // 插件来源
+    "pluginSetting.section.sort": string; // 插件排序
+    "pluginSetting.section.maintenance": string; // 维护操作
+    "pluginSetting.maintenance.expand": string; // 展开维护操作
+    "pluginSetting.maintenance.collapse": string; // 收起维护操作
+    "pluginSetting.maintenance.toggleTip": string; // 维护操作折叠提示
+    "pluginSetting.stat.installed": string; // 已安装
+    "pluginSetting.stat.subscriptions": string; // 订阅
+    "pluginSetting.stat.archived": string; // 已归档
+    "pluginSetting.stat.available": string; // 可用
+    "pluginSetting.stat.disabled": string; // 已取消勾选
+    "pluginSetting.stat.invalid": string; // 标记失效
+    "pluginSetting.subscription.add": string; // 添加订阅
+    "pluginSetting.subscription.addTip": string; // 添加订阅提示
+    "pluginSetting.subscription.manage": string; // 管理订阅
+    "pluginSetting.subscription.manageTip": string; // 管理订阅提示
+    "pluginSetting.subscription.lastUpdated": string; // 最近更新
+    "pluginSetting.subscription.missingCount": string; // 订阅消失数量
+    "pluginSetting.subscription.pluginCount": string; // 订阅插件数量
+    "pluginSetting.subscription.pluginCountUnknown": string; // 未更新订阅
+    "pluginSetting.subscription.deleteTitle": string; // 删除订阅标题
+    "pluginSetting.subscription.deleteContent": string; // 删除订阅确认
+    "pluginSetting.subscription.deleteContentWithPlugins": string; // 删除订阅和关联插件确认
+    "pluginSetting.subscription.deleteWithPlugins": string; // 删除订阅和插件
+    "pluginSetting.subscription.detail": string; // 订阅详情
+    "pluginSetting.subscription.notFound": string; // 订阅不存在
+    "pluginSetting.subscription.editTip": string; // 编辑订阅提示
+    "pluginSetting.subscription.updateThis": string; // 更新当前订阅
+    "pluginSetting.subscription.updateThisTip": string; // 更新当前订阅提示
+    "pluginSetting.subscription.deleteTip": string; // 删除订阅提示
+    "pluginSetting.subscription.updateFailedTitle": string; // 订阅更新失败明细
+    "pluginSetting.subscription.copyUrl": string; // 复制订阅地址
+    "pluginSetting.origin.subscription": string; // 订阅
+    "pluginSetting.origin.local": string; // 本地安装
+    "pluginSetting.origin.network": string; // 网络安装
+    "pluginSetting.origin.builtin": string; // 内置
+    "pluginSetting.origin.detail": string; // 来源分组
+    "pluginSetting.origin.notFound": string; // 来源分组不存在或已为空
+    "pluginSetting.origin.pluginCount": string; // 插件数量
+    "pluginSetting.origin.healthCount": string; // 分组健康数量
+    "pluginSetting.origin.actionTip": string; // 组操作影响提示
+    "pluginSetting.origin.actionContent": string; // 组操作确认内容
+    "pluginSetting.origin.actionRisk": string; // 组操作风险提示
+    "pluginSetting.origin.actions.enable": string; // 整组启用
+    "pluginSetting.origin.actions.disable": string; // 整组禁用
+    "pluginSetting.origin.actions.archive": string; // 整组归档
+    "pluginSetting.origin.actions.restore": string; // 整组恢复
+    "pluginSetting.sort.manage": string; // 调整插件顺序
+    "pluginSetting.sort.manageTip": string; // 调整插件顺序提示
+    "toast.updateSubscriptionSuccess": string; // 订阅更新成功
+    "toast.subscriptionAlreadyExists": string; // 订阅地址已存在
+    "toast.updateSubscriptionFailed": string; // 订阅更新失败
+    "toast.partialSubscriptionUpdateFailed": string; // 部分订阅更新失败
     "pluginSetting.pluginUpdateFailedDialogContent": string; // 插件更新失败对话框内容
 
     // 提示消息相关 - 插件操作
@@ -313,6 +417,7 @@ export interface ILanguageData {
     "basicSettings.notInterrupt": string; // 允许与其他应用同时播放
     "basicSettings.autoPlayWhenAppStart": string; // 软件启动时自动播放歌曲
     "basicSettings.tryChangeSourceWhenPlayFail": string; // 播放失败时尝试更换音源
+    "basicSettings.playSourceFallbackStrictMatch": string; // 换源时严格匹配歌曲
     "basicSettings.autoStopWhenError": string; // 播放失败时自动暂停
     "basicSettings.tempRemoteDuck": string; // 播放被暂时打断时
     "basicSettings.tempRemoteDuck.pause": string; // 暂停播放
@@ -353,6 +458,7 @@ export interface ILanguageData {
     "basicSettings.cache": string; // 缓存
     "basicSettings.cache.musicCacheLimit": string; // 音乐缓存上限
     "basicSettings.cache.clearMusicCache": string; // 清除音乐缓存
+    "basicSettings.cache.clearSourceFallbackCache": string; // 清除换源结果缓存
     "basicSettings.cache.clearLyricCache": string; // 清除歌词缓存
     "basicSettings.cache.clearImageCache": string; // 清除图片缓存
     
@@ -367,6 +473,8 @@ export interface ILanguageData {
     "dialog.setCacheTitle": string; // 设置缓存
     "dialog.setCachePlaceholder": string; // 输入缓存占用上限提示
     "dialog.clearMusicCacheTitle": string; // 清除音乐缓存
+    "dialog.clearSourceFallbackCacheTitle": string; // 清除换源结果缓存
+    "dialog.clearSourceFallbackCacheContent": string; // 清除换源结果缓存确认内容
     "dialog.clearMusicCacheContent": string; // 清除音乐缓存确认内容
     "dialog.clearLyricCacheTitle": string; // 清除歌词缓存
     "dialog.clearLyricCacheContent": string; // 清除歌词缓存确认内容
@@ -384,6 +492,7 @@ export interface ILanguageData {
     // 提示消息相关 - 缓存和日志
     "toast.cacheSetSuccess": string; // 设置成功
     "toast.musicCacheCleared": string; // 已清除音乐缓存
+    "toast.sourceFallbackCacheCleared": string; // 已清除换源结果缓存
     "toast.lyricCacheCleared": string; // 已清除歌词缓存
     "toast.imageCacheCleared": string; // 已清除图片缓存
     "toast.logCleared": string; // 日志已清空
@@ -530,7 +639,25 @@ export interface ILanguageData {
     "repeatMode.SHUFFLE": string; // 随机播放
     "repeatMode.QUEUE": string; // 列表循环
     "repeatMode.SINGLE": string; // 单曲循环
+
+    // 播放来源连续性相关
+    "playback.temporarySource": string; // 临时来源
+    "dialog.batchSource.filtering": string; // 正在检查歌曲音源
+    "dialog.batchSource.affectedCount": string; // 预计影响数量
+    "dialog.batchSource.autoSelect": string; // 自动推荐
+    "dialog.batchSource.background": string; // 后台运行
+    "dialog.batchSource.backgroundCompleted": string; // 后台换源完成
+    "dialog.batchSource.backgroundFailed": string; // 后台换源失败
+    "dialog.batchSource.noAffected": string; // 没有需要临时换源的歌曲
+    "dialog.batchSource.summary": string; // 批量换源结果统计
+    "dialog.batchSource.status.pending": string; // 等待处理
+    "dialog.batchSource.status.success": string; // 成功
+    "dialog.batchSource.status.fail": string; // 失败
+    "dialog.batchSource.status.timeout": string; // 超时
+    "dialog.batchSource.status.current": string; // 当前播放跳过
+    "dialog.batchSource.status.skipped": string; // 已跳过
 }
+
 
 // 语言接口定义
 export interface ILanguage {

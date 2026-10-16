@@ -5,6 +5,10 @@ type Plugin = any; // Placeholder for the actual Plugin type
  */
 export interface IInstallPluginConfig {
     notCheckVersion?: boolean;
+    subscriptionId?: string;
+    subscriptionUrl?: string;
+    /** 更新插件时保留原有安装来源分组。 */
+    preserveOriginHash?: string;
 }
 
 /**
@@ -74,6 +78,20 @@ export interface IPluginManager {
      * @throws 如果插件没有源URL或更新失败时抛出错误
      */
     updatePlugin(plugin: Plugin): Promise<void>;
+
+    updateSubscription(subscriptionId: string): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }>;
+
+    updateAllSubscriptions(): Promise<{
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+    }>;
+
+    getSubscriptionAssociatedPlugins(subscriptionId: string): Plugin[];
+
+    deleteSubscription(subscriptionId: string): Promise<void>;
 
     /**
      * 通过媒体项的平台信息获取对应的插件
@@ -193,4 +211,3 @@ export interface IPluginManager {
      */
     getAlternativePlugin(plugin: Plugin): Plugin | null;
 }
-

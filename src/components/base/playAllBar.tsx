@@ -50,6 +50,7 @@ export default function (props: IProps) {
                         TrackPlayer.playWithReplacePlayList(
                             defaultPlayMusic,
                             musicList,
+                            sheetId ? { sheetId } : undefined,
                         );
                     }
                 }}>

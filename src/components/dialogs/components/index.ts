@@ -7,6 +7,7 @@ import RadioDialog from "./radioDialog";
 import SimpleDialog from "./simpleDialog";
 import SubscribePluginDialog from "./subscribePluginDialog";
 import SetScheduleCloseTimeDialog from "./setScheduleCloseTimeDialog";
+import BatchSourceDialog from "./batchSourceDialog";
 
 const dialogs = {
     SimpleDialog,
@@ -18,6 +19,7 @@ const dialogs = {
     CheckStorage,
     MarkdownDialog,
     SetScheduleCloseTimeDialog,
+    BatchSourceDialog,
 };
 
 export default dialogs;

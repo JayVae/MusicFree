@@ -1,3 +1,12 @@
-{"version":"0.6.2","changeLog":[
-  "【优化】优化了软件启动速度 (需要在【侧边栏-基本设置-插件】中打开【启用插件懒加载】开关)"
-],"download":["https://r0rvr854dd1.feishu.cn/drive/folder/KLqKfWOA3lx8MKdo8xNcYpR8n7t"]}
+{
+  "version": "0.6.3",
+  "changeLog": [
+    "【新增】播放源自适应与失败自动换源",
+    "【新增】插件订阅、来源分组与可用性测试",
+    "【新增】下载结果历史",
+    "【优化】插件启动与元数据恢复稳定性"
+  ],
+  "download": [
+    "https://github.com/JayVae/MusicFree/releases/latest"
+  ]
+}

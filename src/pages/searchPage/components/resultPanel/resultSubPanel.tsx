@@ -7,7 +7,8 @@ import rpx, { vw } from "@/utils/rpx";
 import { useAtomValue } from "jotai";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Text } from "react-native";
-import { SceneMap, TabBar, TabView } from "react-native-tab-view";
+import { SceneMap, TabView } from "react-native-tab-view";
+import { CompatTabBar } from "@/components/base/compatTabBar";
 import { searchResultsAtom } from "../../store/atoms";
 import { renderMap } from "./results";
 import DefaultResults from "./results/defaultResults";
@@ -90,7 +91,7 @@ function ResultSubPanel(props: IResultSubPanelProps) {
                 routes,
             }}
             renderTabBar={_ => (
-                <TabBar
+                <CompatTabBar
                     {..._}
                     scrollEnabled
                     style={{

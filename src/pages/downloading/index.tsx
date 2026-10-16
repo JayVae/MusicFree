@@ -5,6 +5,7 @@ import MusicBar from "@/components/musicBar";
 import VerticalSafeAreaView from "@/components/base/verticalSafeAreaView";
 import globalStyle from "@/constants/globalStyle";
 import AppBar from "@/components/base/appBar";
+import { clearDownloadHistory } from "@/core/downloadHistory";
 import { useI18N } from "@/core/i18n";
 
 export default function Downloading() {
@@ -13,7 +14,14 @@ export default function Downloading() {
     return (
         <VerticalSafeAreaView style={globalStyle.fwflex1}>
             <StatusBar />
-            <AppBar>{t("downloading.title")}</AppBar>
+            <AppBar
+                menu={[{
+                    icon: "trash-outline",
+                    title: t("downloading.history.clear"),
+                    onPress: clearDownloadHistory,
+                }]}>
+                {t("downloading.title")}
+            </AppBar>
             <DownloadingList />
             <MusicBar />
         </VerticalSafeAreaView>

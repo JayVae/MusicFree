@@ -40,6 +40,13 @@ export default function Operations() {
                 navigate(ROUTE_PATH.LOCAL);
             },
         },
+        {
+            iconName: "arrow-down-tray",
+            title: t("common.download"),
+            action() {
+                navigate(ROUTE_PATH.DOWNLOADING);
+            },
+        },
     ] as const;
 
     return (

@@ -90,12 +90,12 @@ export default function RadioDialog(props: IRadioDialogProps) {
                         <ListItem
                             withHorizontalPadding
                             onPress={() => {
+                                hideDialog();
                                 if (isConfig) {
                                     onOk?.(item.value);
                                 } else {
                                     onOk?.(item);
                                 }
-                                hideDialog();
                             }}
                             heightType="small">
                             {isConfig && item.icon ? (

@@ -9,9 +9,10 @@ interface ISimpleDialogProps {
     okText?: string;
     cancelText?: string;
     onOk?: () => void;
+    onCancel?: () => void;
 }
 export default function SimpleDialog(props: ISimpleDialogProps) {
-    const { title, content, onOk, okText, cancelText } = props;
+    const { title, content, onOk, onCancel, okText, cancelText } = props;
 
     const { t } = useI18N();
 
@@ -20,7 +21,10 @@ export default function SimpleDialog(props: ISimpleDialogProps) {
             {
                 title: cancelText ?? t("common.cancel"),
                 type: "normal",
-                onPress: hideDialog,
+                onPress() {
+                    onCancel?.();
+                    hideDialog();
+                },
             },
             {
                 title: okText ?? t("common.confirm"),

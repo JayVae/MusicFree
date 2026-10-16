@@ -4,6 +4,7 @@ import {
     localPluginPlatform,
 } from "@/constants/commonConst";
 import pathConst from "@/constants/pathConst";
+import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import Mp3Util from "@/native/mp3Util";
 import Base64 from "@/utils/base64";
 import delay from "@/utils/delay";
@@ -30,6 +31,10 @@ import { devLog, errorLog, trace } from "../../utils/log";
 import Network from "../../utils/network";
 import MediaCache from "../mediaCache";
 import _internalPluginMeta from "./meta";
+import {
+    reportPluginMethodError,
+    reportPluginMethodSuccess,
+} from "./health";
 import { IPluginManager } from "@/types/core/pluginManager";
 
 
@@ -65,6 +70,8 @@ const packages: Record<string, any> = {
     "@react-native-cookies/cookies": deprecatedCookieManager,
     webdav,
 };
+
+const pluginCacheStore = getOrCreateMMKV("plugin.cache");
 
 const _require = (packageName: string) => {
     let pkg = packages[packageName];
@@ -172,8 +179,15 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
             };
         }
 
-        const result =
-            (await this.plugin.instance.search(query, page, type)) ?? {};
+        let result: IPlugin.ISearchResult<T>;
+        try {
+            result = (await this.plugin.instance.search(query, page, type)) ?? {};
+        } catch (e: any) {
+            reportPluginMethodError(this.plugin.name, this.plugin.hash, e);
+            throw e;
+        }
+
+        reportPluginMethodSuccess(this.plugin.name, this.plugin.hash);
         if (Array.isArray(result.data)) {
             result.data.forEach(_ => {
                 resetMediaItem(_, this.plugin.name);
@@ -274,6 +288,7 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
                 throw new Error("NOT RETRY");
             }
             trace("播放", "插件播放");
+            reportPluginMethodSuccess(parserPlugin.name, parserPlugin.hash);
             const result = {
                 url,
                 headers,
@@ -317,6 +332,9 @@ class PluginMethodsWrapper implements IPlugin.IPluginInstanceMethods {
             }
             errorLog("获取真实源失败", e?.message);
             devLog("error", "获取真实源失败", e, e?.message);
+            if (e?.message !== "NOT RETRY") {
+                reportPluginMethodError(parserPlugin.name, parserPlugin.hash, e);
+            }
             return null;
         }
     }
@@ -895,11 +913,43 @@ export class Plugin {
             try {
                 const funcCode = await loadFuncCode();
                 this.mountPlugin(funcCode, this.lazyProps.path);
+                // R6: 首次挂载成功后缓存元数据，后续启动可直接使用元数据恢复
+                if ((this.state as PluginState) === PluginState.Mounted) {
+                    this.cacheMetadata();
+                }
             } catch {
                 this.state = PluginState.Error;
                 this.errorReason = this.errorReason ?? PluginErrorReason.CannotParse;
             }
         }
+    }
+
+    /**
+     * R6: 将插件元数据（不含可执行代码）缓存到 MMKV，用于下次启动元数据先行恢复。
+     * 同时记录文件 mtime / size，以便检测文件变更后回退完整挂载。
+     */
+    private cacheMetadata() {
+        if (!this.path || this.state !== PluginState.Mounted) {
+            return;
+        }
+        const entry = {
+            name: this.name,
+            hash: this.hash,
+            path: this.path,
+            instance: JSON.parse(JSON.stringify(this.instance)),
+            supportedMethods: [...this.supportedMethods],
+        };
+        stat(this.path)
+            .then(statResult => {
+                (entry as any).fileStats = {
+                    mtime: statResult.mtime,
+                    size: statResult.size,
+                };
+                pluginCacheStore.set(this.path, JSON.stringify(entry));
+            })
+            .catch(() => {
+                pluginCacheStore.set(this.path, JSON.stringify(entry));
+            });
     }
 
     private mountPlugin(

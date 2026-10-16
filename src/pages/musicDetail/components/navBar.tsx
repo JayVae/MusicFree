@@ -8,10 +8,14 @@ import Share from "react-native-share";
 import { B64Asset } from "@/constants/assetsConst";
 import IconButton from "@/components/base/iconButton";
 import { useCurrentMusic } from "@/core/trackPlayer";
+import { useTemporarySourcePluginName } from "@/core/playbackSource";
+import { useI18N } from "@/core/i18n";
 
 export default function NavBar() {
     const navigation = useNavigation();
     const musicItem = useCurrentMusic();
+    const temporarySourcePluginName = useTemporarySourcePluginName();
+    const { t } = useI18N();
     // const {showShare} = useShare();
 
     return (
@@ -36,6 +40,15 @@ export default function NavBar() {
                     {musicItem?.platform ? (
                         <Tag
                             tagName={musicItem.platform}
+                            containerStyle={styles.tagBg}
+                            style={styles.tagText}
+                        />
+                    ) : null}
+                    {temporarySourcePluginName ? (
+                        <Tag
+                            tagName={t("playback.temporarySource", {
+                                plugin: temporarySourcePluginName,
+                            })}
                             containerStyle={styles.tagBg}
                             style={styles.tagText}
                         />

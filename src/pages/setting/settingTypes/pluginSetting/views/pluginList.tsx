@@ -1,72 +1,307 @@
-import React, { useState } from "react";
-import { FlatList, StyleSheet, View } from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { SectionList, StyleSheet, View } from "react-native";
 import rpx from "@/utils/rpx";
 import * as DocumentPicker from "expo-document-picker";
 import Loading from "@/components/base/loading";
 
-import PluginManager, { useSortedPlugins } from "@/core/pluginManager";
+import PluginManager, { Plugin, usePluginEnabledStates, useSortedPlugins } from "@/core/pluginManager";
+import {
+    ISubscriptionItem,
+    useSubscriptionItems,
+    useSubscriptionRecords,
+    withSubscriptionId,
+} from "@/core/pluginManager/subscription";
+import { PluginHealthStatus, usePluginHealthRecords } from "@/core/pluginManager/health";
+import {
+    buildPluginOriginGroups,
+    IPluginOriginGroup,
+    PluginOriginType,
+    usePluginOriginRecords,
+} from "@/core/pluginManager/pluginOrigin";
+import useColors from "@/hooks/useColors";
 import { trace } from "@/utils/log";
 
 import Toast from "@/utils/toast";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
-import Config from "@/core/appConfig";
+import Config, { useAppConfig } from "@/core/appConfig";
 import Empty from "@/components/base/empty";
 import HorizontalSafeAreaView from "@/components/base/horizontalSafeAreaView.tsx";
 import { showDialog } from "@/components/dialogs/useDialog";
 import { showPanel } from "@/components/panels/usePanel";
 import AppBar from "@/components/base/appBar";
-import Fab from "@/components/base/fab";
+import ThemeText from "@/components/base/themeText";
+import TextButton from "@/components/base/textButton";
+import ListItem from "@/components/base/listItem";
 import PluginItem from "../components/pluginItem";
 import { IIconName } from "@/components/base/icon.tsx";
 import { IInstallPluginResult } from "@/types/core/pluginManager";
 import { useI18N } from "@/core/i18n";
+import {
+    DEFAULT_AVAILABILITY_QUERY,
+    PluginAvailabilityStatus,
+    runPluginAvailabilityTests,
+    usePluginAvailabilityStates,
+} from "@/core/pluginAvailability";
 
-interface IOption {
+interface PluginGroup {
+    sectionKey: "installed";
+    name: string;
+    plugins: Plugin[];
+}
+
+interface IAddSubscriptionAction {
+    kind: "add-subscription";
+}
+
+type SubscriptionSectionItem = ISubscriptionItem | IAddSubscriptionAction | IPluginOriginGroup;
+
+const ADD_SUBSCRIPTION_ACTION: IAddSubscriptionAction = {
+    kind: "add-subscription",
+};
+
+function reportInstallResults(
+    results: IInstallPluginResult[],
+    t: (key: any, options?: any) => string,
+) {
+    const successResults = results.filter(it => it.success);
+    const failResults = results.filter(it => !it.success);
+    if (!failResults.length) {
+        Toast.success(t("toast.installPluginSuccess"));
+        return;
+    }
+    Toast.warn(successResults.length
+        ? t("toast.partialPluginInstallFailed")
+        : t("toast.allPluginInstallFailed"), {
+        type: "warn",
+        actionText: t("common.view"),
+        onActionClick: () => {
+            showDialog("SimpleDialog", {
+                title: t("pluginSetting.menu.pluginInstallFailedDialogTitle"),
+                content: t("pluginSetting.pluginInstallFailedDialogContent", {
+                    detail: failResults.map(it =>
+                        `${it.pluginUrl ?? ""}\n${
+                            t("pluginSetting.failReason", {
+                                reason: it.message ?? "",
+                            })
+                        }`
+                    ).join("\n-----\n"),
+                }),
+            });
+        },
+    });
+}
+
+function ManageSubscriptionRow(props: {
     icon: IIconName;
     title: string;
-    onPress?: () => void;
+    description: string;
+    onPress: () => void;
+}) {
+    return (
+        <ListItem withHorizontalPadding onPress={props.onPress}>
+            <ListItem.Content title={props.title} description={props.description} />
+            <ListItem.ListItemIcon icon={props.icon} position="right" />
+        </ListItem>
+    );
 }
 
 export default function PluginList() {
     const plugins = useSortedPlugins();
+    const colors = useColors();
     const { t } = useI18N();
-
     const [loading, setLoading] = useState(false);
-
+    const [selectedPluginHashes, setSelectedPluginHashes] = useState<Set<string>>(new Set());
+    const [isSelectingPlugins, setIsSelectingPlugins] = useState(false);
+    const [isAvailabilityTesting, setIsAvailabilityTesting] = useState(false);
+    const availabilityAbortRef = useRef({ canceled: false });
+    const availabilityStates = usePluginAvailabilityStates();
+    const [maintenanceExpanded, setMaintenanceExpanded] = useState(false);
     const navigator = useNavigation<any>();
+    const rawSubscriptions = useAppConfig("plugin.subscribeUrl");
+    const subscriptions = useSubscriptionItems(rawSubscriptions);
+    const subscriptionRecords = useSubscriptionRecords();
+    const originRecords = usePluginOriginRecords();
+    const healthRecords = usePluginHealthRecords();
+    const enabledStates = usePluginEnabledStates(plugins);
 
-    const menuOptions: IOption[] = [
-        {
-            icon: "bookmark-square",
-            title: t("pluginSetting.menu.subscriptionSetting"),
-            async onPress() {
-                navigator.navigate("/pluginsetting/subscribe");
+    const pluginGroups = useMemo(() => {
+        const groupMap = new Map<string, Plugin[]>();
+        plugins.forEach(plugin => {
+            const group = groupMap.get(plugin.name) ?? [];
+            group.push(plugin);
+            groupMap.set(plugin.name, group);
+        });
+        return [...groupMap.entries()].map(([name, groupPlugins]) => ({
+            sectionKey: "installed" as const,
+            name,
+            plugins: groupPlugins,
+        }));
+    }, [plugins]);
+
+    const duplicateSourceNames = useMemo(() => {
+        const sourceMap = new Map<string, Set<string>>();
+        plugins.forEach(plugin => {
+            const sourceUrl = plugin.instance.srcUrl?.trim();
+            if (!sourceUrl) {
+                return;
+            }
+            const names = sourceMap.get(sourceUrl) ?? new Set<string>();
+            names.add(plugin.name);
+            sourceMap.set(sourceUrl, names);
+        });
+        return new Set(
+            [...sourceMap.values()]
+                .filter(names => names.size > 1)
+                .flatMap(names => [...names]),
+        );
+    }, [plugins]);
+
+    const installedHashes = useMemo(
+        () => new Set(plugins.map(plugin => plugin.hash)),
+        [plugins],
+    );
+    const missingCount = useMemo(
+        () => new Set(
+            subscriptionRecords
+                .filter(record =>
+                    record.missingFromSubscription &&
+                    installedHashes.has(record.pluginHash)
+                )
+                .map(record => record.pluginHash),
+        ).size,
+        [subscriptionRecords, installedHashes],
+    );
+    const originGroups = useMemo(
+        () => buildPluginOriginGroups(
+            plugins,
+            originRecords,
+            subscriptions,
+            subscriptionRecords,
+        ),
+        [plugins, originRecords, subscriptions, subscriptionRecords],
+    );
+    const archivedCount = plugins.filter(plugin =>
+        (healthRecords[plugin.name]?.status ??
+            PluginHealthStatus.Available) === PluginHealthStatus.Archived
+    ).length;
+    const disabledCount = plugins.filter(plugin =>
+        !enabledStates[plugin.name],
+    ).length;
+    const availabilitySummary = useMemo(() => {
+        const currentHashes = new Set(plugins.map(plugin => plugin.hash));
+        const states = Object.entries(availabilityStates)
+            .filter(([pluginHash]) => currentHashes.has(pluginHash))
+            .map(([, state]) => state);
+
+        return {
+            total: states.length,
+            waiting: states.filter(it => it.status === PluginAvailabilityStatus.Waiting).length,
+            testing: states.filter(it => it.status === PluginAvailabilityStatus.Testing).length,
+            success: states.filter(it => it.status === PluginAvailabilityStatus.Success).length,
+            fail: states.filter(it => it.status === PluginAvailabilityStatus.Fail).length,
+            skipped: states.filter(it => it.status === PluginAvailabilityStatus.Skipped).length,
+        };
+    }, [availabilityStates, plugins]);
+
+    const invalidCount = plugins.filter(plugin =>
+        (healthRecords[plugin.name]?.status ??
+            PluginHealthStatus.Available) === PluginHealthStatus.UserInvalid
+    ).length;
+
+    const navigate = useCallback((path: string) => {
+        navigator.navigate(path);
+    }, [navigator]);
+
+    const togglePluginSelected = useCallback((pluginHash: string) => {
+        setSelectedPluginHashes(previous => {
+            const next = new Set(previous);
+            if (next.has(pluginHash)) {
+                next.delete(pluginHash);
+            } else {
+                next.add(pluginHash);
+            }
+            return next;
+        });
+    }, []);
+
+    const exitPluginSelectionMode = useCallback(() => {
+        setIsSelectingPlugins(false);
+        setSelectedPluginHashes(new Set());
+    }, []);
+
+    const togglePluginSelectionMode = useCallback(() => {
+        setIsSelectingPlugins(previous => !previous);
+        setSelectedPluginHashes(new Set());
+    }, []);
+
+    const startAvailabilityTest = (keyword: string) => {
+        if (!selectedPluginHashes.size) {
+            Toast.warn(t("pluginSetting.availability.noSelection"));
+            return;
+        }
+        if (isAvailabilityTesting) {
+            return;
+        }
+
+        const selectedPlugins = plugins.filter(plugin =>
+            selectedPluginHashes.has(plugin.hash)
+        );
+        availabilityAbortRef.current = { canceled: false };
+        setIsAvailabilityTesting(true);
+        runPluginAvailabilityTests({
+            plugins: selectedPlugins,
+            keyword,
+            shouldAbort: () => availabilityAbortRef.current.canceled,
+        }).then(results => {
+            if (availabilityAbortRef.current.canceled) {
+                return;
+            }
+            const successCount = results.filter(
+                it => it.status === PluginAvailabilityStatus.Success,
+            ).length;
+            const failCount = results.filter(
+                it => it.status === PluginAvailabilityStatus.Fail,
+            ).length;
+            const skipCount = results.filter(
+                it => it.status === PluginAvailabilityStatus.Skipped,
+            ).length;
+            if (failCount) {
+                Toast.warn(t("pluginSetting.availability.completedWithFail", {
+                    success: successCount,
+                    fail: failCount,
+                    skip: skipCount,
+                }));
+            } else {
+                Toast.success(t("pluginSetting.availability.completed", {
+                    success: successCount,
+                    skip: skipCount,
+                }));
+            }
+        }).catch((e: any) => {
+            Toast.warn(t("toast.unknownError", {
+                reason: e?.message ?? e,
+            }));
+        }).finally(() => {
+            setIsAvailabilityTesting(false);
+        });
+    };
+
+    const onTestAvailabilityClick = () => {
+        if (!selectedPluginHashes.size) {
+            Toast.warn(t("pluginSetting.availability.noSelection"));
+            return;
+        }
+        showPanel("SimpleInput", {
+            title: t("pluginSetting.availability.inputTitle"),
+            placeholder: t("pluginSetting.availability.inputPlaceholder"),
+            maxLength: 40,
+            async onOk(text, closePanel) {
+                closePanel();
+                startAvailabilityTest(text.trim() || DEFAULT_AVAILABILITY_QUERY);
             },
-        },
-        {
-            icon: "bars-3",
-            title: t("pluginSetting.menu.sort"),
-            onPress() {
-                navigator.navigate("/pluginsetting/sort");
-            },
-        },
-        {
-            icon: "trash-outline",
-            title: t("pluginSetting.menu.uninstallAll"),
-            onPress() {
-                showDialog("SimpleDialog", {
-                    title: t("pluginSetting.menu.uninstallAll"),
-                    content: t("pluginSetting.menu.uninstallAllContent"),
-                    async onOk() {
-                        setLoading(true);
-                        await PluginManager.uninstallAllPlugins();
-                        setLoading(false);
-                    },
-                });
-            },
-        },
-    ];
+        });
+    };
 
     async function onInstallFromLocalClick() {
         try {
@@ -76,24 +311,17 @@ export default function PluginList() {
                 type: ["application/javascript", "text/javascript"],
             });
             if (results.canceled) {
-                // 用户取消
                 return;
             }
             setLoading(true);
-
-            await Promise.all(
-                results.assets.map(async it => {
-                    await PluginManager.installPluginFromLocalFile(it.uri, {
-                        notCheckVersion: Config.getConfig(
-                            "basic.notCheckPluginVersion",
-                        ),
-                        useExpoFs: true,
-                    });
-                }),
-            );
-            // 初步过滤
-
-            Toast.success(t("toast.installPluginSuccess"));
+            const installResults: IInstallPluginResult[] = [];
+            for (const asset of results.assets) {
+                installResults.push(await PluginManager.installPluginFromLocalFile(asset.uri, {
+                    notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+                    useExpoFs: true,
+                }));
+            }
+            reportInstallResults(installResults, t);
         } catch (e: any) {
             trace("插件安装失败", e?.message);
             Toast.warn(t("toast.installPluginFail", {
@@ -111,151 +339,53 @@ export default function PluginList() {
             async onOk(text, closePanel) {
                 setLoading(true);
                 closePanel();
-
-                const result = await installPluginFromUrl(text.trim());
-
-                // 检查是否全部安装成功
-                const successResults: IInstallPluginResult[] = [];
-                const failResults: IInstallPluginResult[] = [];
-                for (let i = 0; i < result.length; ++i) {
-                    if (result[i].success) {
-                        successResults.push(result[i]);
-                    } else {
-                        failResults.push(result[i]);
-                    }
-                }
-
-                if (!failResults.length) {
-                    Toast.success(t("toast.installPluginSuccess"));
-                } else {
-                    Toast.warn(successResults.length ? t("toast.partialPluginInstallFailed") : t("toast.allPluginInstallFailed"), {
-                        "type": "warn",
-                        "actionText": t("common.view"),
-                        "onActionClick": () => {
-                            showDialog("SimpleDialog", {
-                                title: t("pluginSetting.menu.pluginInstallFailedDialogTitle"),
-                                content: t("pluginSetting.pluginInstallFailedDialogContent", {
-                                    detail: failResults.map(it => (it.pluginUrl ?? "") + "\n" + t("pluginSetting.failReason", {
-                                        reason: it.message ?? "",
-                                    })).join("\n-----\n"),
-                                }),
-                            });
-                        },
-                    });
-                }
-
-
+                const results = await installPluginFromUrl(text.trim());
+                reportInstallResults(results, t);
                 setLoading(false);
             },
         });
     }
 
-    async function onSubscribeClick() {
-        const urls = Config.getConfig("plugin.subscribeUrl");
-        if (!urls) {
-            Toast.warn(t("toast.noSubscription"));
-        }
-        setLoading(true);
-
-        const successResults: IInstallPluginResult[] = [];
-        const failResults: IInstallPluginResult[] = [];
-
-        try {
-            const urlItems = JSON.parse(urls!);
-            if (Array.isArray(urlItems)) {
-                for (let i = 0; i < urlItems.length; ++i) {
-                    const result = await installPluginFromUrl(urlItems[i].url);
-                    if (result[0]) {
-                        if (result[0].success) {
-                            successResults.push(result[0]);
-                        } else {
-                            failResults.push(result[0]);
-                        }
-                    }
-                }
-            } else {
-                throw new Error();
-            }
-
-            if (!failResults.length) {
-                Toast.success(t("toast.installPluginSuccess"));
-            } else {
-                Toast.warn((successResults.length ? t("toast.partialPluginInstallFailed") : t("toast.allPluginInstallFailed")), {
-                    "type": "warn",
-                    "actionText": t("common.view"),
-                    "onActionClick": () => {
-                        showDialog("SimpleDialog", {
-                            title: t("pluginSetting.menu.pluginInstallFailedDialogTitle"),
-                            content: t("pluginSetting.pluginInstallFailedDialogContent", {
-                                detail: failResults.map(it => (it.pluginUrl ?? "") + "\n" + t("pluginSetting.failReason", {
-                                    reason: it.message ?? "",
-                                })).join("\n-----\n"),
-                            }),
-                        });
-                    },
-                });
-            }
-
-        } catch {
-            if (urls?.length) {
-                const result = await installPluginFromUrl(urls);
-                if (result[0]) {
-                    if (result[0].success) {
-                        Toast.success(t("toast.installPluginSuccess"));
-                    } else {
-                        Toast.warn(t("toast.partialPluginInstallFailedWithReason", {
-                            reason: result[0].message ?? "",
-                        }));
-                    }
-                } else {
-                    Toast.warn(t("toast.subscriptionInvalid"));
-                }
-            }
-        }
-        setLoading(false);
-    }
-
     async function onUpdateAllClick() {
-        const plugins = PluginManager.getEnabledPlugins();
         setLoading(true);
-
-        const successResults: IInstallPluginResult[] = [];
-        const failResults: IInstallPluginResult[] = [];
-
         try {
-            for (let i = 0; i < plugins.length; ++i) {
-                const srcUrl = plugins[i].instance.srcUrl;
-                if (srcUrl) {
-                    const result = await installPluginFromUrl(srcUrl);
-                    if (result[0]) {
-                        if (result[0].success) {
-                            successResults.push(result[0]);
-                        } else {
-                            failResults.push(result[0]);
-                        }
-                    }
+            const results: IInstallPluginResult[] = [];
+            const enabledPlugins = PluginManager.getEnabledPlugins();
+            for (const plugin of enabledPlugins) {
+                if (!plugin.instance.srcUrl) {
+                    continue;
                 }
+                results.push(...await installPluginFromUrl(
+                    plugin.instance.srcUrl,
+                    plugin.hash,
+                ));
             }
-
+            const successResults = results.filter(it => it.success);
+            const failResults = results.filter(it => !it.success);
             if (!failResults.length) {
                 Toast.success(t("toast.updatePluginSuccess"));
             } else {
-                Toast.warn((successResults.length ? t("toast.partialPluginUpdateFailed") : t("toast.allPluginUpdateFailed")), {
-                    "type": "warn",
-                    "actionText": t("common.view"),
-                    "onActionClick": () => {
+                Toast.warn(successResults.length
+                    ? t("toast.partialPluginUpdateFailed")
+                    : t("toast.allPluginUpdateFailed"), {
+                    type: "warn",
+                    actionText: t("common.view"),
+                    onActionClick: () => {
                         showDialog("SimpleDialog", {
                             title: t("pluginSetting.menu.pluginUpdateFailedDialogTitle"),
                             content: t("pluginSetting.pluginUpdateFailedDialogContent", {
-                                detail: failResults.map(it => (it.pluginUrl ?? "") + "\n" + t("pluginSetting.failReason", {
-                                    reason: it.message ?? "",
-                                })).join("\n-----\n"),
+                                detail: failResults.map(it =>
+                                    `${it.pluginUrl ?? ""}\n${
+                                        t("pluginSetting.failReason", {
+                                            reason: it.message ?? "",
+                                        })
+                                    }`
+                                ).join("\n-----\n"),
                             }),
                         });
                     },
                 });
             }
-
         } catch (e: any) {
             Toast.warn(t("toast.unknownError", {
                 reason: e?.message ?? e,
@@ -264,68 +394,473 @@ export default function PluginList() {
         setLoading(false);
     }
 
+    const updateSubscriptionById = async (subscriptionId: string) => {
+        setLoading(true);
+        try {
+            const { successResults, failResults } =
+                await PluginManager.updateSubscription(subscriptionId);
+            if (!failResults.length) {
+                Toast.success(t("toast.updateSubscriptionSuccess"));
+            } else if (!successResults.length) {
+                Toast.warn(t("toast.updateSubscriptionFailed"));
+            } else {
+                Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
+                    count: failResults.length,
+                }));
+            }
+        } catch (e: any) {
+            Toast.warn(t("toast.unknownError", {
+                reason: e?.message ?? e,
+            }));
+        }
+        setLoading(false);
+    };
+
+    async function onUpdateSubscriptionClick() {
+        setLoading(true);
+        try {
+            const { successResults, failResults } =
+                await PluginManager.updateAllSubscriptions();
+            if (!failResults.length) {
+                Toast.success(t("toast.updateSubscriptionSuccess"));
+            } else if (!successResults.length) {
+                Toast.warn(t("toast.updateSubscriptionFailed"));
+            } else {
+                Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
+                    count: failResults.length,
+                }));
+            }
+        } catch (e: any) {
+            Toast.warn(t("toast.unknownError", {
+                reason: e?.message ?? e,
+            }));
+        }
+        setLoading(false);
+    }
+
+    const onAddSubscriptionSubmit = (
+        subscribeItem: ISubscriptionItem,
+        hideDialog: () => void,
+    ) => {
+        if (
+            !subscribeItem.url.toLowerCase().endsWith(".js") &&
+            !subscribeItem.url.toLowerCase().endsWith(".json")
+        ) {
+            Toast.warn(t("toast.subscriptionHaveToEndWithJs"));
+            return;
+        }
+        const normalized = withSubscriptionId(subscribeItem);
+        if (subscriptions.some(it => it.id === normalized.id)) {
+            Toast.warn(t("toast.subscriptionAlreadyExists"));
+            return;
+        }
+        Config.setConfig(
+            "plugin.subscribeUrl",
+            JSON.stringify([...subscriptions, normalized]),
+        );
+        hideDialog();
+        // 订阅配置立即进入来源列表；首次拉取失败时仍保留空订阅组，便于手动重试。
+        updateSubscriptionById(normalized.id);
+    };
+
+    const sections = [
+        {
+            key: "overview",
+            title: t("pluginSetting.section.overview"),
+            data: [1],
+            renderItem: () => (
+                <View style={[styles.overview, { backgroundColor: colors.card }]}>
+                    <View style={styles.statRow}>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{plugins.length}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.installed")}
+                            </ThemeText>
+                        </View>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{subscriptions.length}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.subscriptions")}
+                            </ThemeText>
+                        </View>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{archivedCount}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.archived")}
+                            </ThemeText>
+                        </View>
+                    </View>
+                    {missingCount > 0 ? (
+                        <ThemeText fontColor="textSecondary" style={styles.warning}>
+                            {t("pluginSetting.subscription.missingCount", {
+                                count: missingCount,
+                            })}
+                        </ThemeText>
+                    ) : null}
+                    <View style={styles.statRow}>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{disabledCount}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.disabled")}
+                            </ThemeText>
+                        </View>
+                        <View style={styles.stat}>
+                            <ThemeText fontSize="title">{invalidCount}</ThemeText>
+                            <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                                {t("pluginSetting.stat.invalid")}
+                            </ThemeText>
+                        </View>
+                    </View>
+                </View>
+            ),
+        },
+        {
+            key: "subscriptions",
+            title: t("pluginSetting.section.sourceGroups"),
+            data: [
+                ADD_SUBSCRIPTION_ACTION,
+                ...[...originGroups].sort((a, b) => {
+                    const order: Record<PluginOriginType, number> = {
+                        [PluginOriginType.Local]: 0,
+                        [PluginOriginType.Network]: 1,
+                        [PluginOriginType.Builtin]: 2,
+                        [PluginOriginType.Subscription]: 3,
+                    };
+                    return order[a.originType] - order[b.originType] ||
+                        (a.originName ?? "").localeCompare(b.originName ?? "");
+                }),
+            ],
+            renderItem: ({ item }: { item: SubscriptionSectionItem }) => {
+                if ("kind" in item) {
+                    return (
+                        <ManageSubscriptionRow
+                            icon="plus"
+                            title={t("pluginSetting.subscription.add")}
+                            description={t("pluginSetting.subscription.addTip")}
+                            onPress={() => {
+                                showDialog("SubscribePluginDialog", {
+                                    onSubmit: onAddSubscriptionSubmit,
+                                });
+                            }}
+                        />
+                    );
+                }
+                const group = item as IPluginOriginGroup;
+                const groupTitle = group.originType === PluginOriginType.Subscription
+                    ? group.originName ?? group.originId
+                    : t(`pluginSetting.origin.${group.originType}` as any);
+                const description = [
+                    t(`pluginSetting.origin.${group.originType}` as any),
+                    t("pluginSetting.origin.pluginCount", {
+                        count: group.pluginCount,
+                    }),
+                    group.latestChangedAt
+                        ? t("pluginSetting.subscription.lastUpdated", {
+                            time: new Date(group.latestChangedAt).toLocaleString(),
+                        })
+                        : undefined,
+                ].filter(Boolean).join(" · ");
+                return (
+                    <ListItem
+                        withHorizontalPadding
+                        onPress={() => navigator.navigate(
+                            "/pluginsetting/origin/detail",
+                            { groupId: group.key },
+                        )}>
+                        <ListItem.Content
+                            title={groupTitle}
+                            description={description}
+                        />
+                        <ListItem.ListItemIcon icon="skip-right" position="right" />
+                    </ListItem>
+                );
+            },
+        },
+        {
+            key: "maintenance",
+            title: t("pluginSetting.section.maintenance"),
+            data: [1],
+            renderItem: () => (
+                <View style={[styles.maintenance, { backgroundColor: colors.card }]}>
+                    <ListItem
+                        withHorizontalPadding
+                        onPress={() => setMaintenanceExpanded(value => !value)}>
+                        <ListItem.Content
+                            title={maintenanceExpanded
+                                ? t("pluginSetting.maintenance.collapse")
+                                : t("pluginSetting.maintenance.expand")}
+                            description={t("pluginSetting.maintenance.toggleTip")}
+                        />
+                        <ListItem.ListItemIcon
+                            icon={maintenanceExpanded ? "minus" : "plus"}
+                            position="right"
+                        />
+                    </ListItem>
+                    {maintenanceExpanded ? (
+                        <View style={styles.maintenanceActions}>
+                            <IconAction
+                                icon="plus"
+                                title={t("pluginSetting.fabOptions.installFromLocal")}
+                                onPress={onInstallFromLocalClick}
+                            />
+                            <IconAction
+                                icon="plus"
+                                title={t("pluginSetting.fabOptions.installFromNetwork")}
+                                onPress={onInstallFromNetworkClick}
+                            />
+                            <IconAction
+                                icon="arrow-path"
+                                title={t("pluginSetting.fabOptions.updateAllPlugins")}
+                                onPress={onUpdateAllClick}
+                            />
+                            <IconAction
+                                icon="arrow-path"
+                                title={t("pluginSetting.fabOptions.updateSubscription")}
+                                onPress={onUpdateSubscriptionClick}
+                            />
+                            <IconAction
+                                icon="trash-outline"
+                                title={t("pluginSetting.menu.uninstallAll")}
+                                onPress={() => {
+                                    showDialog("SimpleDialog", {
+                                        title: t("pluginSetting.menu.uninstallAll"),
+                                        content: t("pluginSetting.menu.uninstallAllContent"),
+                                        async onOk() {
+                                            setLoading(true);
+                                            await PluginManager.uninstallAllPlugins();
+                                            setLoading(false);
+                                        },
+                                    });
+                                }}
+                            />
+                        </View>
+                    ) : null}
+                </View>
+            ),
+        },
+        {
+            key: "installed",
+            title: t("pluginSetting.section.installed"),
+            data: pluginGroups,
+            renderItem: ({ item }: { item: PluginGroup }) => (
+                <View>
+                    {item.plugins.map((plugin, index) => (
+                        <PluginItem
+                            key={plugin.hash}
+                            plugin={plugin}
+                            duplicateCount={item.plugins.length}
+                            duplicateIndex={index + 1}
+                            duplicateSourceGroup={duplicateSourceNames.has(
+                                plugin.name,
+                            )}
+                            selectable={isSelectingPlugins}
+                            selected={selectedPluginHashes.has(plugin.hash)}
+                            onSelectToggle={togglePluginSelected}
+                            availabilityTest={availabilityStates[plugin.hash]}
+                        />
+                    ))}
+                </View>
+            ),
+        },
+    ];
+
     return (
         <>
-            <AppBar menu={menuOptions}>{t("sidebar.pluginManagement")}</AppBar>
+            <AppBar>{t("sidebar.pluginManagement")}</AppBar>
             <HorizontalSafeAreaView style={style.wrapper}>
-                <>
-                    {loading ? (
-                        <Loading />
-                    ) : (
-                        <FlatList
-                            ListEmptyComponent={Empty}
-                            ListFooterComponent={<View style={style.blank} />}
-                            data={plugins ?? []}
-                            keyExtractor={_ => _.hash}
-                            renderItem={({ item: plugin }) => (
-                                <PluginItem key={plugin.hash} plugin={plugin} />
-                            )}
-                        />
-                    )}
-
-                    <Fab
-                        icon="plus"
-                        onPress={() => {
-                            showPanel("SimpleSelect", {
-                                header: t("pluginSetting.menu.installPlugin"),
-                                candidates: [
-                                    {
-                                        value: "从本地安装插件",
-                                        title: t("pluginSetting.fabOptions.installFromLocal"),
-                                    },
-                                    {
-                                        value: "从网络安装插件",
-                                        title: t("pluginSetting.fabOptions.installFromNetwork"),
-                                    },
-                                    {
-                                        value: "更新全部插件",
-                                        title: t("pluginSetting.fabOptions.updateAllPlugins"),
-                                    },
-                                    {
-                                        value: "更新订阅",
-                                        title: t("pluginSetting.fabOptions.updateSubscription"),
-                                    },
-                                ],
-                                onPress(item) {
-                                    if (item.value === "从本地安装插件") {
-                                        onInstallFromLocalClick();
-                                    } else if (
-                                        item.value === "从网络安装插件"
-                                    ) {
-                                        onInstallFromNetworkClick();
-                                    } else if (item.value === "更新订阅") {
-                                        onSubscribeClick();
-                                    } else if (item.value === "更新全部插件") {
-                                        onUpdateAllClick();
-                                    }
-                                },
-                            });
+                {loading ? (
+                    <Loading />
+                ) : (
+                    <SectionList
+                        sections={sections as any}
+                        keyExtractor={(item, index) => {
+                            const groupItem = item as PluginGroup;
+                            return groupItem?.sectionKey === "installed"
+                                ? `installed-group-${groupItem.name}`
+                                : `${index}`;
                         }}
+                        renderSectionHeader={({ section }) => {
+                            if ((section as any).key !== "installed") {
+                                return (
+                                    <ThemeText
+                                        fontWeight="bold"
+                                        style={styles.sectionHeader}>
+                                        {section.title}
+                                    </ThemeText>
+                                );
+                            }
+                            return (
+                                <AvailabilitySectionHeader
+                                    title={section.title}
+                                    selectedCount={selectedPluginHashes.size}
+                                    isSelecting={isSelectingPlugins}
+                                    isTesting={isAvailabilityTesting}
+                                    summary={availabilitySummary}
+                                    colors={colors}
+                                    t={t}
+                                    onSelectToggle={togglePluginSelectionMode}
+                                    onTest={onTestAvailabilityClick}
+                                    onCancel={() => {
+                                        availabilityAbortRef.current = { canceled: true };
+                                        Toast.success(t("pluginSetting.availability.canceling"));
+                                    }}
+                                    onFinish={exitPluginSelectionMode}
+                                    onOpenSort={() => navigate("/pluginsetting/sort")}
+                                />
+                            );
+                        }}
+                        renderItem={({ section, item, index }) =>
+                            (section as any).renderItem({ item, index })
+                        }
+                        ListEmptyComponent={Empty}
+                        contentContainerStyle={styles.listContent}
+                        ListFooterComponent={<View style={styles.footer} />}
                     />
-                </>
+                )}
             </HorizontalSafeAreaView>
         </>
     );
+}
+
+function AvailabilitySectionHeader(props: {
+    title: string;
+    selectedCount: number;
+    isSelecting: boolean;
+    isTesting: boolean;
+    summary: {
+        total: number;
+        waiting: number;
+        testing: number;
+        success: number;
+        fail: number;
+        skipped: number;
+    };
+    colors: any;
+    t: (key: any, options?: any) => string;
+    onSelectToggle: () => void;
+    onTest: () => void;
+    onCancel: () => void;
+    onFinish: () => void;
+    onOpenSort: () => void;
+}) {
+    const { colors, summary, t } = props;
+    return (
+        <View>
+            <ThemeText fontWeight="bold" style={styles.sectionHeader}>
+                {props.title}
+            </ThemeText>
+            <View style={[styles.batchTestPanel, { backgroundColor: colors.card }]}>
+                <ListItem
+                    withHorizontalPadding
+                    style={styles.iconAction}
+                    onPress={props.onOpenSort}>
+                    <ListItem.Content
+                        title={t("pluginSetting.sort.manage")}
+                        description={t("pluginSetting.sort.manageTip")}
+                    />
+                    <ListItem.ListItemIcon icon="skip-right" position="right" />
+                </ListItem>
+                <IconAction
+                    icon="magnifying-glass"
+                    title={t("pluginSetting.availability.batchTest")}
+                    onPress={props.onSelectToggle}
+                />
+                {props.isSelecting ? (
+                    <View style={styles.selectionActions}>
+                        <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                            {t("pluginSetting.availability.selectedCount", {
+                                count: props.selectedCount,
+                            })}
+                        </ThemeText>
+                        <View style={styles.selectionActions}>
+                            {props.isTesting ? (
+                                <TextButton onPress={props.onCancel}>
+                                    {t("pluginSetting.availability.cancel")}
+                                </TextButton>
+                            ) : (
+                                <TextButton onPress={props.onTest}>
+                                    {t("pluginSetting.availability.test", {
+                                        count: props.selectedCount,
+                                    })}
+                                </TextButton>
+                            )}
+                            <TextButton onPress={props.onFinish}>
+                                {t("pluginSetting.availability.finishSelection")}
+                            </TextButton>
+                        </View>
+                    </View>
+                ) : null}
+                {summary.total ? (
+                    <View style={styles.availabilityResult}>
+                        <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                            {t("pluginSetting.availability.resultSummary", {
+                                summary: [
+                                    `${t("pluginSetting.availability.status.waiting")} ${summary.waiting}`,
+                                    `${t("pluginSetting.availability.status.testing")} ${summary.testing}`,
+                                    `${t("pluginSetting.availability.status.success")} ${summary.success}`,
+                                    `${t("pluginSetting.availability.status.fail")} ${summary.fail}`,
+                                    `${t("pluginSetting.availability.status.skipped")} ${summary.skipped}`,
+                                ].join(" · "),
+                            })}
+                        </ThemeText>
+                    </View>
+                ) : null}
+            </View>
+        </View>
+    );
+}
+
+function IconAction(props: {
+    icon: IIconName;
+    title: string;
+    onPress?: () => void;
+}) {
+    return (
+        <ListItem
+            withHorizontalPadding
+            style={styles.iconAction}
+            onPress={props.onPress}>
+            <ListItem.ListItemIcon icon={props.icon} />
+            <ListItem.Content title={props.title} />
+        </ListItem>
+    );
+}
+
+async function installPluginFromUrl(
+    text: string,
+    preserveOriginHash?: string,
+): Promise<IInstallPluginResult[]> {
+    try {
+        const inputUrl = text.trim();
+        if (!inputUrl.toLowerCase().endsWith(".json")) {
+            return [await PluginManager.installPluginFromUrl(inputUrl, {
+                notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+                preserveOriginHash,
+            })];
+        }
+        const jsonFile = (
+            await axios.get(inputUrl, {
+                headers: {
+                    "Cache-Control": "no-cache",
+                    Pragma: "no-cache",
+                    Expires: "0",
+                },
+            })
+        ).data;
+        const urls = (jsonFile?.plugins ?? [])
+            .map((it: any) => it?.url)
+            .filter((url: unknown): url is string => typeof url === "string");
+        const results: IInstallPluginResult[] = [];
+        for (const url of urls) {
+            results.push(await PluginManager.installPluginFromUrl(url, {
+                notCheckVersion: Config.getConfig("basic.notCheckPluginVersion"),
+                preserveOriginHash,
+            }));
+        }
+        return results;
+    } catch (e: any) {
+        return [{ success: false, message: e?.message, pluginUrl: text }];
+    }
 }
 
 const style = StyleSheet.create({
@@ -333,49 +868,65 @@ const style = StyleSheet.create({
         width: "100%",
         flex: 1,
     },
-    blank: {
-        height: rpx(200),
-    },
 });
 
-
-
-async function installPluginFromUrl(text: string): Promise<IInstallPluginResult[]> {
-    try {
-        let urls: string[] = [];
-        const inputUrl = text.trim();
-        if (text.endsWith(".json")) {
-            const jsonFile = (
-                await axios.get(inputUrl, {
-                    headers: {
-                        "Cache-Control": "no-cache",
-                        Pragma: "no-cache",
-                        Expires: "0",
-                    },
-                })
-            ).data;
-            /**
-             * {
-             *     plugins: [{
-             *          version: xxx,
-             *          url: xxx
-             *      }]
-             * }
-             */
-            urls = (jsonFile?.plugins ?? []).map((_: any) => _.url);
-        } else {
-            urls = [inputUrl];
-        }
-        return await Promise.all(
-            urls.map(url =>
-                PluginManager.installPluginFromUrl(url, {
-                    notCheckVersion: Config.getConfig(
-                        "basic.notCheckPluginVersion",
-                    ),
-                }),
-            ),
-        );
-    } catch (e: any) {
-        return [{ success: false, message: e?.message, pluginUrl: text }];
-    }
-}
+const styles = StyleSheet.create({
+    listContent: {
+        paddingBottom: rpx(120),
+    },
+    sectionHeader: {
+        marginTop: rpx(32),
+        marginBottom: rpx(12),
+        paddingHorizontal: rpx(24),
+    },
+    footer: {
+        height: rpx(80),
+    },
+    overview: {
+        marginHorizontal: rpx(24),
+        padding: rpx(20),
+        borderRadius: rpx(12),
+    },
+    statRow: {
+        flexDirection: "row",
+    },
+    stat: {
+        flex: 1,
+        alignItems: "center",
+        gap: rpx(4),
+    },
+    warning: {
+        marginTop: rpx(16),
+    },
+    batchTestPanel: {
+        marginHorizontal: rpx(24),
+        marginBottom: rpx(12),
+        borderRadius: rpx(12),
+        overflow: "hidden",
+    },
+    selectionActions: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: rpx(16),
+        paddingHorizontal: rpx(16),
+        paddingBottom: rpx(12),
+    },
+    availabilityResult: {
+        paddingHorizontal: rpx(16),
+        paddingBottom: rpx(16),
+    },
+    iconAction: {
+        flex: 1,
+        borderRadius: rpx(10),
+    },
+    maintenance: {
+        marginHorizontal: rpx(24),
+        borderRadius: rpx(12),
+        overflow: "hidden",
+    },
+    maintenanceActions: {
+        gap: rpx(12),
+        paddingBottom: rpx(12),
+    },
+});

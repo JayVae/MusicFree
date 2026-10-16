@@ -2,13 +2,22 @@ import React, { memo } from "react";
 
 import useColors from "@/hooks/useColors";
 import pluginManager, { Plugin, usePluginEnabled } from "@/core/pluginManager";
+import { PluginState } from "@/core/pluginManager/plugin";
+import {
+    markPluginArchived,
+    markPluginInvalid,
+    PluginHealthStatus,
+    restorePlugin,
+    usePluginHealth,
+} from "@/core/pluginManager/health";
 
 import Toast from "@/utils/toast";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { showDialog } from "@/components/dialogs/useDialog";
 import { showPanel } from "@/components/panels/usePanel";
 import rpx from "@/utils/rpx";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import Tag from "@/components/base/tag";
 import ThemeText from "@/components/base/themeText";
 import IconTextButton from "@/components/base/iconTextButton";
 import ThemeSwitch from "@/components/base/switch";
@@ -16,9 +25,20 @@ import { IIconName } from "@/components/base/icon.tsx";
 import { useI18N } from "@/core/i18n";
 import IconButton from "@/components/base/iconButton";
 import useRerender from "@/hooks/useRerender";
+import Checkbox from "@/components/base/checkbox";
+import type { IPluginAvailabilityTestState } from "@/core/pluginAvailability";
+import { useAppConfig } from "@/core/appConfig";
+import { usePluginSubscriptionRecord, useSubscriptionItems } from "@/core/pluginManager/subscription";
 
 interface IPluginItemProps {
     plugin: Plugin;
+    duplicateCount?: number;
+    duplicateIndex?: number;
+    duplicateSourceGroup?: boolean;
+    selectable?: boolean;
+    selected?: boolean;
+    onSelectToggle?: (pluginHash: string) => void;
+    availabilityTest?: IPluginAvailabilityTestState;
 }
 
 interface IOption {
@@ -29,13 +49,29 @@ interface IOption {
 }
 
 function _PluginItem(props: IPluginItemProps) {
-    const { plugin } = props;
+    const {
+        plugin,
+        duplicateCount,
+        duplicateIndex,
+        duplicateSourceGroup,
+        selectable,
+        selected,
+        onSelectToggle,
+        availabilityTest,
+    } = props;
     const colors = useColors();
     const enabled = usePluginEnabled(plugin);
+    const health = usePluginHealth(plugin.name);
+    const healthStatus = health?.status ?? PluginHealthStatus.Available;
     const { t } = useI18N();
     const rerender = useRerender();
 
     const alternativePluginName = pluginManager.getAlternativePluginName(plugin);
+    const subscriptionRecord = usePluginSubscriptionRecord(plugin.hash);
+    const rawSubscriptionConfig = useAppConfig("plugin.subscribeUrl");
+    const subscriptionName = useSubscriptionItems(rawSubscriptionConfig)
+        .find(it => it.id === subscriptionRecord?.subscriptionId)?.name
+        ?? subscriptionRecord?.sourceUrl;
 
     const options: IOption[] = [
         {
@@ -197,6 +233,51 @@ function _PluginItem(props: IPluginItemProps) {
             },
             show: Array.isArray(plugin.instance.userVariables),
         },
+        {
+            title: t("pluginSetting.pluginItem.options.markInvalid"),
+            icon: "shield-keyhole-outline",
+            onPress() {
+                showDialog("SimpleDialog", {
+                    title: t("pluginSetting.pluginItem.options.markInvalid"),
+                    content: t("pluginSetting.pluginItem.options.markInvalidContent", {
+                        name: plugin.name,
+                    }),
+                    onOk() {
+                        markPluginInvalid(plugin.name, plugin.hash);
+                        Toast.success(t("toast.settingSuccess"));
+                    },
+                });
+            },
+            show: healthStatus === PluginHealthStatus.Available ||
+                healthStatus === PluginHealthStatus.Quarantined,
+        },
+        {
+            title: t("pluginSetting.pluginItem.options.archivePlugin"),
+            icon: "archive-box-x-mark",
+            onPress() {
+                showDialog("SimpleDialog", {
+                    title: t("pluginSetting.pluginItem.options.archivePlugin"),
+                    content: t("pluginSetting.pluginItem.options.archivePluginContent", {
+                        name: plugin.name,
+                    }),
+                    onOk() {
+                        markPluginArchived(plugin.name, plugin.hash);
+                        Toast.success(t("toast.settingSuccess"));
+                    },
+                });
+            },
+            show: healthStatus === PluginHealthStatus.Available ||
+                healthStatus === PluginHealthStatus.Quarantined,
+        },
+        {
+            title: t("pluginSetting.pluginItem.options.restorePlugin"),
+            icon: "arrow-path",
+            onPress() {
+                restorePlugin(plugin.name, plugin.hash);
+                Toast.success(t("toast.settingSuccess"));
+            },
+            show: healthStatus !== PluginHealthStatus.Available,
+        },
     ];
 
     return (
@@ -207,13 +288,57 @@ function _PluginItem(props: IPluginItemProps) {
                     backgroundColor: colors.card,
                 },
             ]}>
-            <View style={styles.header}>
+            <TouchableOpacity
+                style={styles.header}
+                activeOpacity={0.8}
+                disabled={!selectable}
+                onPress={selectable
+                    ? () => onSelectToggle?.(plugin.hash)
+                    : undefined}>
                 <View style={styles.headerPluginContainer}>
+                    {selectable ? (
+                        <Checkbox checked={selected} />
+                    ) : null}
                     <ThemeText
                         numberOfLines={1}
                         fontSize="title">
                         {plugin.name}
                     </ThemeText>
+                    {
+                        availabilityTest ? (
+                            <Tag tagName={t(
+                                `pluginSetting.availability.status.${availabilityTest.status}` as any,
+                            )} />
+                        ) : null
+                    }
+                    {
+                        healthStatus !== PluginHealthStatus.Available ? (
+                            <Tag tagName={t(`pluginSetting.pluginItem.health.${healthStatus}` as any)} />
+                        ) : null
+                    }
+                    {
+                        duplicateCount && duplicateCount > 1 ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.duplicateGroup", {
+                                index: duplicateIndex ?? 1,
+                                count: duplicateCount,
+                            })} />
+                        ) : null
+                    }
+                    {
+                        duplicateSourceGroup ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.duplicateSource")} />
+                        ) : null
+                    }
+                    {
+                        subscriptionRecord?.missingFromSubscription ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.subscriptionMissing")} />
+                        ) : null
+                    }
+                    {
+                        plugin.state === PluginState.Error ? (
+                            <Tag tagName={t("pluginSetting.pluginItem.health.parseError")} />
+                        ) : null
+                    }
                     {
                         plugin.instance.description?.length ? <IconButton name='question-mark-circle' sizeType='light' onPress={() => {
                             showDialog("MarkdownDialog", {
@@ -230,7 +355,7 @@ function _PluginItem(props: IPluginItemProps) {
                         pluginManager.setPluginEnabled(plugin, val);
                     }}
                 />
-            </View>
+            </TouchableOpacity>
             <View style={styles.description}>
                 <ThemeText fontSize="subTitle" fontColor="textSecondary">
                     {t("pluginSetting.pluginItem.versionHint", {
@@ -249,6 +374,15 @@ function _PluginItem(props: IPluginItemProps) {
                     </ThemeText>
                 ) : null}
             </View>
+            {subscriptionRecord ? (
+                <View style={styles.subscriptionDescription}>
+                    <ThemeText fontSize="subTitle" fontColor="textSecondary" numberOfLines={1}>
+                        {t("pluginSetting.pluginItem.subscriptionSource", {
+                            name: subscriptionName,
+                        })}
+                    </ThemeText>
+                </View>
+            ) : null}
             {alternativePluginName ? <View style={styles.alternativePluginDescription}>
                 <ThemeText fontSize="subTitle" fontColor="textSecondary">
                     {t("pluginSetting.pluginItem.alternativePlugin", {
@@ -256,6 +390,17 @@ function _PluginItem(props: IPluginItemProps) {
                     })}
                 </ThemeText>
             </View> : null}
+            {healthStatus !== PluginHealthStatus.Available ? (
+                <View style={styles.healthDescription}>
+                    <ThemeText fontSize="subTitle" fontColor="textSecondary">
+                        {healthStatus === PluginHealthStatus.Quarantined
+                            ? t("pluginSetting.pluginItem.health.failureCount", {
+                                count: health?.consecutiveFailures ?? 0,
+                            })
+                            : t(`pluginSetting.pluginItem.health.${healthStatus}` as any)}
+                    </ThemeText>
+                </View>
+            ) : null}
             <View style={styles.contents}>
                 {options.map((it, index) =>
                     it.show !== false ? (
@@ -312,7 +457,11 @@ function _PluginItem(props: IPluginItemProps) {
 }
 
 const PluginItem = memo(_PluginItem, (prev, curr) => {
-    return prev.plugin === curr.plugin;
+    return prev.plugin === curr.plugin &&
+        prev.selectable === curr.selectable &&
+        prev.selected === curr.selected &&
+        prev.onSelectToggle === curr.onSelectToggle &&
+        prev.availabilityTest === curr.availabilityTest;
 });
 export default PluginItem;
 
@@ -345,6 +494,14 @@ const styles = StyleSheet.create({
         marginHorizontal: rpx(16),
         marginVertical: rpx(24),
         flexDirection: "row",
+    },
+    healthDescription: {
+        marginHorizontal: rpx(16),
+        marginBottom: rpx(24),
+    },
+    subscriptionDescription: {
+        marginHorizontal: rpx(16),
+        marginBottom: rpx(16),
     },
     alternativePluginDescription: {
         marginHorizontal: rpx(16),
