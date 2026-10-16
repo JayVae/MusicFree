@@ -653,7 +653,7 @@ export default function PluginList() {
                             )}
                             selectable={isSelectingPlugins}
                             selected={selectedPluginHashes.has(plugin.hash)}
-                            onSelectToggle={() => togglePluginSelected(plugin.hash)}
+                            onSelectToggle={togglePluginSelected}
                             availabilityTest={availabilityStates[plugin.hash]}
                         />
                     ))}
@@ -687,7 +687,12 @@ export default function PluginList() {
                 ) : (
                     <SectionList
                         sections={sections as any}
-                        keyExtractor={(item, index) => `${index}`}
+                        keyExtractor={(item, index) => {
+                            const groupItem = item as PluginGroup;
+                            return groupItem.plugins
+                                ? `installed-group-${groupItem.name}`
+                                : `${index}`;
+                        }}
                         renderSectionHeader={({ section }) => {
                             if ((section as any).key !== "installed") {
                                 return (

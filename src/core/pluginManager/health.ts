@@ -2,6 +2,7 @@ import Network from "@/utils/network";
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse, safeStringify } from "@/utils/jsonUtil";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
+import { atomFamily } from "jotai/utils";
 
 export enum PluginHealthStatus {
     Available = "available",
@@ -44,6 +45,12 @@ function loadHealthRecords(): Record<string, IPluginHealthRecord> {
 
 const pluginHealthAtom = atom<Record<string, IPluginHealthRecord>>(
     loadHealthRecords(),
+);
+
+const nullPluginHealthAtom = atom<IPluginHealthRecord | null>(null);
+
+const pluginHealthAtomFamily = atomFamily((pluginName: string) =>
+    atom(get => get(pluginHealthAtom)[pluginName] ?? null)
 );
 
 function saveHealthRecords(records: Record<string, IPluginHealthRecord>) {
@@ -96,9 +103,10 @@ export function usePluginHealthRecords(): Record<string, IPluginHealthRecord> {
 }
 
 export function usePluginHealth(pluginName?: string | null): IPluginHealthRecord | null {
-    const records = useAtomValue(pluginHealthAtom);
     const key = normalizeHealthKey(pluginName);
-    return key ? records[key] ?? null : null;
+    return useAtomValue(
+        key ? pluginHealthAtomFamily(key) : nullPluginHealthAtom,
+    );
 }
 
 /** 清空连续失败计数；不覆盖用户手动维护的状态。 */

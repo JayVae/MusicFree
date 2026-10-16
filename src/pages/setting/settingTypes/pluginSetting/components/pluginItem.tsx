@@ -16,7 +16,7 @@ import Clipboard from "@react-native-clipboard/clipboard";
 import { showDialog } from "@/components/dialogs/useDialog";
 import { showPanel } from "@/components/panels/usePanel";
 import rpx from "@/utils/rpx";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 import Tag from "@/components/base/tag";
 import ThemeText from "@/components/base/themeText";
 import IconTextButton from "@/components/base/iconTextButton";
@@ -37,7 +37,7 @@ interface IPluginItemProps {
     duplicateSourceGroup?: boolean;
     selectable?: boolean;
     selected?: boolean;
-    onSelectToggle?: () => void;
+    onSelectToggle?: (pluginHash: string) => void;
     availabilityTest?: IPluginAvailabilityTestState;
 }
 
@@ -293,14 +293,27 @@ function _PluginItem(props: IPluginItemProps) {
                     {selectable ? (
                         <Checkbox
                             checked={selected}
-                            onPress={onSelectToggle}
+                            onPress={() => onSelectToggle?.(plugin.hash)}
                         />
                     ) : null}
-                    <ThemeText
-                        numberOfLines={1}
-                        fontSize="title">
-                        {plugin.name}
-                    </ThemeText>
+                    {selectable ? (
+                        <TouchableOpacity
+                            style={styles.pluginNameTouchable}
+                            activeOpacity={0.7}
+                            onPress={() => onSelectToggle?.(plugin.hash)}>
+                            <ThemeText
+                                numberOfLines={1}
+                                fontSize="title">
+                                {plugin.name}
+                            </ThemeText>
+                        </TouchableOpacity>
+                    ) : (
+                        <ThemeText
+                            numberOfLines={1}
+                            fontSize="title">
+                            {plugin.name}
+                        </ThemeText>
+                    )}
                     {
                         availabilityTest ? (
                             <Tag tagName={t(
@@ -481,6 +494,9 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         gap: rpx(8),
         alignItems: "center",
+    },
+    pluginNameTouchable: {
+        flexShrink: 1,
     },
     author: {
         marginLeft: rpx(24),
