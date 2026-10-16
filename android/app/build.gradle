@@ -114,7 +114,18 @@ static def getVersion() {
 // }
 
 def appVersion = getVersion()
-def appVersionCode = 400011
+
+static def getVersionCode(String version) {
+    def semanticParts = version.tokenize('-')[0].tokenize('.')
+    if (semanticParts.size() != 3) {
+        throw new IllegalArgumentException("Unsupported semantic version: $version")
+    }
+    return semanticParts[0].toInteger() * 1000000 +
+            semanticParts[1].toInteger() * 1000 +
+            semanticParts[2].toInteger()
+}
+
+def appVersionCode = getVersionCode(appVersion)
 
 
 android {
