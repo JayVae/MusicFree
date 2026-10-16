@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-16
-当前状态：R1/R2、R3、R4、R5、R6、R7 已验收通过；R8 代码实现与静态验证完成，代码阶段收尾，Android 真机验收待用户执行；最终 Android 回归顺延到 R9 之后。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8 已验收通过；下一阶段为 R9，实现前必须先完成第 20 章剩余口径确认；最终 Android 回归顺延到 R9 之后。
 
 ## 1. 分支
 
@@ -19,18 +19,19 @@ R7 已提交：
 57db54d fix: reuse resolved temporary sources
 ```
 
-R8 当前分支：
+R8 已验收分支：
 
 ```text
 feat/0.6.2-plugin-source-groups
 ```
 
-R8 代码提交：
+R8 已提交：
 
 ```text
 432d9f9 feat(plugin): add source groups
 a91d236 fix(plugin): clarify group operation risk
 d58e0ed fix(plugin): stabilize source groups
+a68696d chore: normalize text line endings
 ```
 
 R9 开始时从 R8 收尾分支创建：
@@ -71,25 +72,25 @@ feat/0.6.2-plugin-availability-test
 4. 卸载、替换和更新同步维护来源；更新保留原分组。
 5. 来源关系存于独立 `plugin.origin`，不进入备份 / 恢复。
 
-关键实现：
-
-- `src/core/pluginManager/pluginOrigin.ts`：来源分组模型、原子读取和分组构建。
-- `src/core/pluginManager/index.ts`：安装、更新、卸载来源记录。
-- `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：来源分组入口。
-- `src/pages/setting/settingTypes/pluginSetting/views/pluginOriginDetail.tsx`：分组详情与组级操作。
-
-
-R8 真机反馈修复（2026-10-16）：
+R8 真机反馈修复：
 
 1. 新增订阅立即展示并自动拉取；失败时保留空订阅组。
 2. 依据 R5 历史订阅记录修正首次启动分组兜底。
 3. 概览健康统计响应式刷新。
 4. 概览数量从健康“可用”改为“已取消勾选”。
+
+关键实现：
+
+- `src/core/pluginManager/pluginOrigin.ts`：来源分组模型、原子读取和分组构建。
+- `src/core/pluginManager/index.ts`：安装、更新、卸载来源记录。
+- `src/pages/setting/settingTypes/pluginSetting/views/pluginList.tsx`：来源分组入口和概览统计。
+- `src/pages/setting/settingTypes/pluginSetting/views/pluginOriginDetail.tsx`：分组详情与组级操作。
+
 ## 4. 下一阶段
 
-1. R8 Android 真机验收由用户执行。
-2. R9：插件管理中测试勾选插件可用性并自动标注；实现前必须先确认第 20 章剩余口径。
-3. R8 / R9 都完成后执行最终 Android 回归。
+1. R9：插件管理中测试勾选插件可用性并自动标注。
+2. R9 实现前必须先确认 `docs/fork-requirements.md` 第 20 章剩余口径。
+3. R9 完成后执行最终 Android 回归。
 
 R9 已确认基础口径：
 
@@ -109,12 +110,13 @@ node node_modules/jest/bin/jest.js --passWithNoTests
 git diff --check
 ```
 
-R8 Android 真机由用户构建验收。
+R8 Android 真机已由用户构建验收通过。
 
 禁止：提交 `run.md` / `testresult.md`、新增运行时依赖、混入当前阶段之外需求、整仓格式化。
 
 ## 6. 注意事项
 
 - `lint-staged` 钩子可能在 commit 时自动 `git add .`，提交前需确认没有带入 `run.md` / `testresult.md`。
-- Windows CRLF 环境下，`git diff --check` 可能对 LF 文件误报；提交内容用 `git diff --cached --check` 复核。
+- 仓库已提交 `.gitattributes` 统一文本换行规则；Windows 下仍需用 `git diff --cached --check` 复核提交内容。
 - 临时来源展示是纯会话态 atom；歌单偏好持久化但不进入备份；空结果抑制是内存态。
+- 插件来源关系持久化但不进入备份 / 恢复。
