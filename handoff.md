@@ -179,3 +179,11 @@ R9 Android 真机已由用户构建验收通过。
 - 插件来源关系持久化但不进入备份 / 恢复。
 - R9 可用性测试明细和汇总是会话态；双失败写入的 `quarantined` 继续按 R3 持久化。
 - 启动阶段未勾选插件仅恢复元数据；首次服务调用才完整挂载，不参与搜索 / 取源。
+
+## 8. v0.6.3 发布准备
+
+1. 功能分支已推送；`release/0.6.3` 已合入 `master`，合并冲突重点保留 master 稳定性修复与 fork 功能实现。
+2. 版本号提升为 `0.6.3`；Android `versionCode` 改为语义化计算（`0.6.3 => 603000`）。
+3. 新增 `.github/workflows/build-release.yml`：`v*` tag 推送触发，构建 release APK、生成 SHA256、上传 Artifact 并发布 GitHub Release。
+4. 签名策略：配置 `RELEASE_KEYSTORE_BASE64` / 密码 / alias Secrets 时用正式签名；否则回退仓库 debug keystore，保证个人可安装。
+5. 合并后验证：`tsc`、Jest、ESLint 0 errors、Android release 增量构建成功。
