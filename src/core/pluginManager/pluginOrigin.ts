@@ -170,12 +170,29 @@ export function buildPluginOriginGroups(
     plugins: IPluginLike[],
     originRecords: IPluginOriginRecord[],
     subscriptions: Array<{ id: string; name: string }> = [],
+    subscriptionPlugins: Array<{
+        pluginHash: string;
+        subscriptionId: string;
+        installedAt?: number;
+    }> = [],
 ): IPluginOriginGroup[] {
     const recordsByHash = new Map<string, IPluginOriginRecord>();
     originRecords.forEach(record => {
         const oldRecord = recordsByHash.get(record.pluginHash);
         if (!oldRecord || record.updatedAt > oldRecord.updatedAt) {
             recordsByHash.set(record.pluginHash, record);
+        }
+    });
+
+    const subscriptionByHash = new Map<string, {
+        subscriptionId: string;
+        installedAt?: number;
+    }>();
+    subscriptionPlugins.forEach(record => {
+        const oldRecord = subscriptionByHash.get(record.pluginHash);
+        if (!oldRecord ||
+            (record.installedAt ?? 0) >= (oldRecord.installedAt ?? 0)) {
+            subscriptionByHash.set(record.pluginHash, record);
         }
     });
 
@@ -211,18 +228,21 @@ export function buildPluginOriginGroups(
         let originName: string | undefined;
         let changedAt = record?.updatedAt;
 
+        const subscriptionRecord = subscriptionByHash.get(plugin.hash);
         if (record) {
             originType = record.originType;
             originId = record.originId;
             originName = record.originName;
+        } else if (subscriptionRecord) {
+            // R5 历史订阅记录没有 origin 记录时，启动后仍按订阅分组。
+            originType = PluginOriginType.Subscription;
+            originId = subscriptionRecord.subscriptionId;
+            changedAt = subscriptionRecord.installedAt;
         }
 
         if (originType === PluginOriginType.Subscription) {
             const subscription = subscriptions.find(it => it.id === originId);
             originName = subscription?.name ?? originName ?? originId;
-            if (!record) {
-                changedAt = undefined;
-            }
         }
 
         const group = ensureGroup(originType, originId, originName);
@@ -231,6 +251,15 @@ export function buildPluginOriginGroups(
         group.latestChangedAt = [group.latestChangedAt, changedAt]
             .filter((it): it is number => typeof it === "number")
             .sort((a, b) => b - a)[0];
+    });
+
+    // 添加但尚未拉取成功的订阅也要出现在来源列表中。
+    subscriptions.forEach(subscription => {
+        ensureGroup(
+            PluginOriginType.Subscription,
+            subscription.id,
+            subscription.name,
+        );
     });
 
     return [...groups.values()];

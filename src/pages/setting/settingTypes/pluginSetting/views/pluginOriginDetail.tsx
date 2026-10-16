@@ -25,7 +25,7 @@ import useColors from "@/hooks/useColors";
 import Toast from "@/utils/toast";
 import { showDialog } from "@/components/dialogs/useDialog";
 import { useAppConfig } from "@/core/appConfig";
-import { useSubscriptionItems } from "@/core/pluginManager/subscription";
+import { useSubscriptionItems, useSubscriptionRecords } from "@/core/pluginManager/subscription";
 import { useI18N } from "@/core/i18n";
 
 interface IRouteParams {
@@ -76,10 +76,16 @@ export default function PluginOriginDetail() {
     const healthRecords = usePluginHealthRecords();
     const rawSubscriptions = useAppConfig("plugin.subscribeUrl");
     const subscriptions = useSubscriptionItems(rawSubscriptions);
+    const subscriptionRecords = useSubscriptionRecords();
 
     const groups = useMemo(
-        () => buildPluginOriginGroups(allPlugins, originRecords, subscriptions),
-        [allPlugins, originRecords, subscriptions],
+        () => buildPluginOriginGroups(
+            allPlugins,
+            originRecords,
+            subscriptions,
+            subscriptionRecords,
+        ),
+        [allPlugins, originRecords, subscriptions, subscriptionRecords],
     );
     const group = groups.find(it => it.key === groupId);
 

@@ -16,7 +16,7 @@ import EventEmitter from "eventemitter3";
 import { readAsStringAsync } from "expo-file-system";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 import { nanoid } from "nanoid";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ToastAndroid } from "react-native";
 import { copyFile, readDir, readFile, stat, unlink, writeFile } from "react-native-fs";
 import { devLog, errorLog, trace } from "../../utils/log";
@@ -1018,6 +1018,28 @@ export function useSortedPlugins() {
     }, [plugins]);
 
     return sortedPlugins;
+}
+
+export function usePluginEnabledStates(plugins: Plugin[]) {
+    const buildEnabledStates = useCallback(
+        () => Object.fromEntries(plugins.map(plugin => [
+            plugin.name,
+            pluginMeta.isPluginEnabled(plugin.name),
+        ])),
+        [plugins],
+    );
+    const [enabledStates, setEnabledStates] = useState(buildEnabledStates);
+
+    useEffect(() => {
+        setEnabledStates(buildEnabledStates());
+        const callback = () => setEnabledStates(buildEnabledStates());
+        ee.on("enabled-updated", callback);
+        return () => {
+            ee.off("enabled-updated", callback);
+        };
+    }, [buildEnabledStates]);
+
+    return enabledStates;
 }
 
 export function usePluginEnabled(plugin: Plugin) {

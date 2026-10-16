@@ -241,6 +241,7 @@ export interface ILanguageData {
     "pluginSetting.stat.subscriptions": string; // 订阅
     "pluginSetting.stat.archived": string; // 已归档
     "pluginSetting.stat.available": string; // 可用
+    "pluginSetting.stat.disabled": string; // 已取消勾选
     "pluginSetting.stat.invalid": string; // 标记失效
     "pluginSetting.subscription.add": string; // 添加订阅
     "pluginSetting.subscription.addTip": string; // 添加订阅提示

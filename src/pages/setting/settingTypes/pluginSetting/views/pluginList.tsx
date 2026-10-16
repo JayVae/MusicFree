@@ -4,14 +4,14 @@ import rpx from "@/utils/rpx";
 import * as DocumentPicker from "expo-document-picker";
 import Loading from "@/components/base/loading";
 
-import PluginManager, { Plugin, useSortedPlugins } from "@/core/pluginManager";
+import PluginManager, { Plugin, usePluginEnabledStates, useSortedPlugins } from "@/core/pluginManager";
 import {
     ISubscriptionItem,
     useSubscriptionItems,
     useSubscriptionRecords,
     withSubscriptionId,
 } from "@/core/pluginManager/subscription";
-import { PluginHealthStatus, getPluginHealthStatus } from "@/core/pluginManager/health";
+import { PluginHealthStatus, usePluginHealthRecords } from "@/core/pluginManager/health";
 import {
     buildPluginOriginGroups,
     IPluginOriginGroup,
@@ -109,6 +109,8 @@ export default function PluginList() {
     const subscriptions = useSubscriptionItems(rawSubscriptions);
     const subscriptionRecords = useSubscriptionRecords();
     const originRecords = usePluginOriginRecords();
+    const healthRecords = usePluginHealthRecords();
+    const enabledStates = usePluginEnabledStates(plugins);
 
     const pluginGroups = useMemo(() => {
         const groupMap = new Map<string, Plugin[]>();
@@ -157,17 +159,24 @@ export default function PluginList() {
         [subscriptionRecords, installedHashes],
     );
     const originGroups = useMemo(
-        () => buildPluginOriginGroups(plugins, originRecords, subscriptions),
-        [plugins, originRecords, subscriptions],
+        () => buildPluginOriginGroups(
+            plugins,
+            originRecords,
+            subscriptions,
+            subscriptionRecords,
+        ),
+        [plugins, originRecords, subscriptions, subscriptionRecords],
     );
     const archivedCount = plugins.filter(plugin =>
-        getPluginHealthStatus(plugin.name) === PluginHealthStatus.Archived
+        (healthRecords[plugin.name]?.status ??
+            PluginHealthStatus.Available) === PluginHealthStatus.Archived
     ).length;
-    const availableCount = plugins.filter(plugin =>
-        getPluginHealthStatus(plugin.name) === PluginHealthStatus.Available
+    const disabledCount = plugins.filter(plugin =>
+        !enabledStates[plugin.name],
     ).length;
     const invalidCount = plugins.filter(plugin =>
-        getPluginHealthStatus(plugin.name) === PluginHealthStatus.UserInvalid
+        (healthRecords[plugin.name]?.status ??
+            PluginHealthStatus.Available) === PluginHealthStatus.UserInvalid
     ).length;
 
     const navigate = useCallback((path: string) => {
@@ -265,6 +274,28 @@ export default function PluginList() {
         setLoading(false);
     }
 
+    const updateSubscriptionById = async (subscriptionId: string) => {
+        setLoading(true);
+        try {
+            const { successResults, failResults } =
+                await PluginManager.updateSubscription(subscriptionId);
+            if (!failResults.length) {
+                Toast.success(t("toast.updateSubscriptionSuccess"));
+            } else if (!successResults.length) {
+                Toast.warn(t("toast.updateSubscriptionFailed"));
+            } else {
+                Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
+                    count: failResults.length,
+                }));
+            }
+        } catch (e: any) {
+            Toast.warn(t("toast.unknownError", {
+                reason: e?.message ?? e,
+            }));
+        }
+        setLoading(false);
+    };
+
     async function onUpdateSubscriptionClick() {
         setLoading(true);
         try {
@@ -308,6 +339,8 @@ export default function PluginList() {
             JSON.stringify([...subscriptions, normalized]),
         );
         hideDialog();
+        // 订阅配置立即进入来源列表；首次拉取失败时仍保留空订阅组，便于手动重试。
+        updateSubscriptionById(normalized.id);
     };
 
     const sections = [
@@ -346,9 +379,9 @@ export default function PluginList() {
                     ) : null}
                     <View style={styles.statRow}>
                         <View style={styles.stat}>
-                            <ThemeText fontSize="title">{availableCount}</ThemeText>
+                            <ThemeText fontSize="title">{disabledCount}</ThemeText>
                             <ThemeText fontSize="subTitle" fontColor="textSecondary">
-                                {t("pluginSetting.stat.available")}
+                                {t("pluginSetting.stat.disabled")}
                             </ThemeText>
                         </View>
                         <View style={styles.stat}>

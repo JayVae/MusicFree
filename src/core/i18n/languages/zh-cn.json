@@ -210,6 +210,7 @@
     "pluginSetting.stat.subscriptions": "订阅",
     "pluginSetting.stat.archived": "已归档",
     "pluginSetting.stat.available": "可用",
+    "pluginSetting.stat.disabled": "已取消勾选",
     "pluginSetting.stat.invalid": "标记失效",
     "pluginSetting.subscription.add": "添加订阅",
     "pluginSetting.subscription.addTip": "添加 .js 或 .json 订阅地址",
