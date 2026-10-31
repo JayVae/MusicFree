@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
-更新时间：2026-10-16
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9 与最终 Android 回归均已验收通过；规划阶段全部收尾。
+更新时间：2026-10-31
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9 与最终 Android 回归均已验收通过；R10 订阅导入与安装流程优化已完成代码与静态验证，待 Android 真机验收。
 
 ## 1. 分支
 
@@ -187,3 +187,27 @@ R9 Android 真机已由用户构建验收通过。
 3. 新增 `.github/workflows/build-release.yml`：`v*` tag 推送触发，构建 release APK、生成 SHA256、上传 Artifact 并发布 GitHub Release。
 4. 签名策略：配置 `RELEASE_KEYSTORE_BASE64` / 密码 / alias Secrets 时用正式签名；否则回退仓库 debug keystore，保证个人可安装。
 5. 合并后验证：`tsc`、Jest、ESLint 0 errors、Android release 增量构建成功。
+
+## 9. R10 订阅导入与安装流程优化（2026-10-31）
+
+分支：`feat/0.6.3-subscription-install`（基于 `master` / v0.6.3）。
+
+问题背景：添加或更新 `https://update.summerbug.dpdns.org/musicfree/plugins.json` 时卡死；该订阅含 57 个插件，原流程串行下载并同步挂载全部插件，阻塞 JS 线程。
+
+已实现：
+
+1. `.json` 订阅添加先拉取插件列表，弹出勾选对话框，默认全选，支持全选 / 全不选。
+2. 安装改为后台串行执行，页面不再等待全部完成；插件间让出 JS 线程。
+3. 单订阅更新同样先展示列表，默认勾选已安装插件；更新全部订阅只更新已安装插件。
+4. 单个插件下载与订阅列表拉取超时 15 秒；单插件失败只记录结果并继续。
+5. 提供会话态进度与取消入口，取消在当前插件完成后生效。
+6. 订阅配置添加时立即保存；列表拉取失败保留空订阅组。
+
+关键实现：
+
+- `src/core/pluginManager/index.ts`：候选列表、后台安装、取消、15 秒超时。
+- `src/core/pluginManager/subscriptionInstall.ts`：安装进度会话态。
+- `src/components/dialogs/components/subscriptionInstallDialog.tsx`：插件勾选。
+- `src/pages/setting/settingTypes/pluginSetting/components/subscriptionInstallBanner.tsx`：进度 / 取消横幅。
+
+验证：`tsc`、ESLint、Jest、`git diff --check`、Android `assembleDebug` 与 Metro production bundle 均通过；待真机验收。

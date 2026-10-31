@@ -1784,3 +1784,38 @@ src/pages/setting/settingTypes/pluginSetting/*
 5. 最终回归分支为 `feat/0.6.2-final-regression`；全部规划阶段完成。
 
 ---
+
+## 22. 第五轮新增需求 R10：订阅导入与安装流程优化（2026-10-31）
+
+### 背景与问题
+
+1. 添加或更新 URL 订阅 `https://update.summerbug.dpdns.org/musicfree/plugins.json` 时界面卡死；原版同样存在该问题。
+2. 该订阅包含 57 个插件。原流程保存订阅后串行下载并同步挂载全部插件，页面需等待整个过程完成。
+3. 单个下载请求缺少显式超时，慢网络下会长时间占用安装队列，影响整体流程。
+
+### 已确认口径
+
+1. 订阅导入不得阻塞或卡死页面，安装改为后台串行执行。
+2. `.json` 订阅先拉取插件列表，由用户勾选需要安装的插件；默认全选，支持全选 / 全不选。
+3. 单个插件下载超时 15 秒；超时或失败仅记入该插件失败结果，继续处理后续插件。
+4. 后台安装提供进度（完成数 / 成功数 / 失败数）和取消入口；取消在当前插件安装完成后生效。
+5. 更新订阅同样走后台安装与进度展示，不再用页面 loading 等待全部完成。
+6. 订阅配置仍在添加时立即保存；拉取插件列表失败时保留空订阅组，可稍后重试更新。
+7. 不新增运行时依赖；进度和取消为会话态，不进入备份。
+8. 单订阅更新先展示插件列表并默认勾选已安装插件；更新全部订阅只更新各订阅已安装插件。
+
+### 实现记录
+
+- `src/core/pluginManager/index.ts`：新增订阅候选列表获取、后台安装、取消接口，以及 15 秒请求超时和插件间让出 JS 线程。
+- `src/core/pluginManager/subscriptionInstall.ts`：新增会话态安装进度。
+- `src/components/dialogs/components/subscriptionInstallDialog.tsx`：新增插件勾选对话框。
+- `src/pages/setting/settingTypes/pluginSetting/components/subscriptionInstallBanner.tsx`：新增进度与取消横幅。
+- `pluginList.tsx` / `pluginSubscriptionDetail.tsx`：添加与更新订阅改为后台安装。
+- 单订阅更新先拉取插件列表并默认勾选已安装插件；“更新全部订阅”只更新已安装插件，避免空订阅被全量安装。
+
+### 验收要点
+
+1. 添加该订阅 URL 时页面不再阻塞，可先勾选插件再开始安装。
+2. 单个插件下载超过 15 秒快速失败，且不影响后续插件。
+3. 进度与取消入口可用；取消后保留已安装插件。
+4. 更新订阅不再出现整页 loading 阻塞。
