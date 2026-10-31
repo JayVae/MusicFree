@@ -6,6 +6,7 @@ import MarkdownDialog from "./markdownDialog";
 import RadioDialog from "./radioDialog";
 import SimpleDialog from "./simpleDialog";
 import SubscribePluginDialog from "./subscribePluginDialog";
+import SubscriptionInstallDialog from "./subscriptionInstallDialog";
 import SetScheduleCloseTimeDialog from "./setScheduleCloseTimeDialog";
 import BatchSourceDialog from "./batchSourceDialog";
 
@@ -14,6 +15,7 @@ const dialogs = {
     RadioDialog,
     DownloadDialog,
     SubscribePluginDialog,
+    SubscriptionInstallDialog,
     LoadingDialog,
     EditSheetDetailDialog,
     CheckStorage,

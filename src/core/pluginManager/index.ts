@@ -7,6 +7,8 @@ import pathConst from "@/constants/pathConst";
 import {
     IInstallPluginConfig,
     IInstallPluginResult,
+    ISubscriptionPluginCandidate,
+    ISubscriptionUpdateResult,
     IPluginManager,
 } from "@/types/core/pluginManager";
 import { removeAllMediaExtra } from "@/utils/mediaExtra";
@@ -40,6 +42,13 @@ import {
     updateSubscriptionInfo,
 } from "./subscription";
 import { localFilePlugin, Plugin, PluginState } from "./plugin";
+import delay from "@/utils/delay";
+import {
+    clearSubscriptionInstallCancellation,
+    isSubscriptionInstallCancelled,
+    requestCancelSubscriptionInstall,
+    setSubscriptionInstallProgress,
+} from "./subscriptionInstall";
 import {
     clearPluginOriginRecords,
     getPluginOrigin,
@@ -55,6 +64,9 @@ import { IAppConfig } from "@/types/core/config";
 
 const pluginsAtom = atom<Plugin[]>([]);
 const pluginCacheStore = getOrCreateMMKV("plugin.cache");
+
+const subscriptionRequestTimeout = 15000;
+const subscriptionInstallGap = 50;
 
 const ee = new EventEmitter<{
     "order-updated": () => void;
@@ -413,6 +425,7 @@ class PluginManager implements IPluginManager, IInjectable {
         try {
             const funcCode = (
                 await axios.get(url, {
+                    timeout: subscriptionRequestTimeout,
                     headers: {
                         "Cache-Control": "no-cache",
                         Pragma: "no-cache",
@@ -636,11 +649,22 @@ class PluginManager implements IPluginManager, IInjectable {
     }
 
     private async fetchSubscriptionPluginUrls(url: string): Promise<string[]> {
+        return (await this.getSubscriptionPluginList(url)).map(it => it.url);
+    }
+
+    /**
+     * 拉取订阅中的插件候选列表；非 .json 地址视为单个插件。
+     * @throws 订阅为空或请求失败时抛出错误
+     */
+    async getSubscriptionPluginList(
+        url: string,
+    ): Promise<ISubscriptionPluginCandidate[]> {
         if (!url.trim().toLowerCase().endsWith(".json")) {
-            return [url];
+            return [{ url }];
         }
         const subscriptionJson = (
             await axios.get(url, {
+                timeout: subscriptionRequestTimeout,
                 headers: {
                     "Cache-Control": "no-cache",
                     Pragma: "no-cache",
@@ -649,8 +673,14 @@ class PluginManager implements IPluginManager, IInjectable {
             })
         ).data;
         const pluginUrls = (subscriptionJson?.plugins ?? [])
-            .map((it: any) => it?.url)
-            .filter((it: unknown): it is string => typeof it === "string");
+            .map((it: any) => ({
+                name: it?.name,
+                version: it?.version,
+                url: it?.url,
+            }))
+            .filter((it: any): it is ISubscriptionPluginCandidate =>
+                typeof it?.url === "string"
+            );
         if (!pluginUrls.length) {
             throw new Error("订阅中没有插件");
         }
@@ -677,14 +707,14 @@ class PluginManager implements IPluginManager, IInjectable {
             const subscriptions = parseSubscriptionConfig(
                 this.appConfigService.getConfig("plugin.subscribeUrl"),
             );
-            return this.doUpdateSubscriptionItems(subscriptions);
+            return this.doUpdateSubscriptionItems(subscriptions, {
+                trackProgress: true,
+                onlyInstalled: true,
+            });
         });
     }
 
-    updateSubscription(subscriptionId: string): Promise<{
-        successResults: IInstallPluginResult[];
-        failResults: IInstallPluginResult[];
-    }> {
+    updateSubscription(subscriptionId: string): Promise<ISubscriptionUpdateResult> {
         return this.enqueueSubscriptionUpdate(async () => {
             const subscriptions = parseSubscriptionConfig(
                 this.appConfigService.getConfig("plugin.subscribeUrl"),
@@ -700,29 +730,95 @@ class PluginManager implements IPluginManager, IInjectable {
                         message: "订阅不存在",
                         pluginUrl: subscriptionId,
                     }],
+                    cancelled: false,
                 };
             }
-            return this.doUpdateSubscriptionItems([subscription]);
+            return this.doUpdateSubscriptionItems([subscription], {
+                trackProgress: true,
+            });
         });
+    }
+
+    installSubscriptionPlugins(
+        subscription: ISubscriptionItem,
+        pluginUrls: string[],
+        allPluginUrls?: string[],
+    ): Promise<ISubscriptionUpdateResult> {
+        return this.enqueueSubscriptionUpdate(() =>
+            this.doUpdateSubscriptionItems([subscription], {
+                pluginUrlsOverride: pluginUrls,
+                expectedUrlsOverride: allPluginUrls,
+                trackProgress: true,
+            }),
+        );
+    }
+
+    cancelSubscriptionInstall(subscriptionId: string): void {
+        requestCancelSubscriptionInstall(subscriptionId);
     }
 
     private async doUpdateSubscriptionItems(
         subscriptions: ISubscriptionItem[],
-    ): Promise<{
-        successResults: IInstallPluginResult[];
-        failResults: IInstallPluginResult[];
-    }> {
+        options?: {
+            pluginUrlsOverride?: string[];
+            expectedUrlsOverride?: string[];
+            onlyInstalled?: boolean;
+            trackProgress?: boolean;
+        },
+    ): Promise<ISubscriptionUpdateResult> {
         const successResults: IInstallPluginResult[] = [];
         const failResults: IInstallPluginResult[] = [];
+        let anyCancelled = false;
 
         for (const subscription of subscriptions) {
+            if (
+                options?.trackProgress &&
+                isSubscriptionInstallCancelled(subscription.id)
+            ) {
+                anyCancelled = true;
+                clearSubscriptionInstallCancellation(subscription.id);
+                continue;
+            }
+            let total = 0;
+            let subscriptionSuccess = 0;
+            let subscriptionFailed = 0;
             try {
-                const pluginUrls = await this.fetchSubscriptionPluginUrls(
-                    subscription.url,
-                );
+                let pluginUrls = options?.pluginUrlsOverride ??
+                    await this.fetchSubscriptionPluginUrls(subscription.url);
+                if (options?.onlyInstalled) {
+                    const installedUrls = new Set(
+                        getActiveSubscriptionRecords(subscription.id)
+                            .map(record => record.sourceUrl),
+                    );
+                    pluginUrls = pluginUrls.filter(url =>
+                        installedUrls.has(url)
+                    );
+                }
+                total = pluginUrls.length;
                 const expectedHashes = new Set<string>();
-                const expectedUrls = new Set<string>(pluginUrls);
-                for (const pluginUrl of pluginUrls) {
+                const expectedUrls = new Set<string>(
+                    options?.expectedUrlsOverride ?? pluginUrls,
+                );
+                if (options?.trackProgress) {
+                    setSubscriptionInstallProgress({
+                        subscriptionId: subscription.id,
+                        total,
+                        completed: 0,
+                        success: 0,
+                        failed: 0,
+                        running: true,
+                    });
+                }
+                let cancelled = false;
+                for (const pluginIndex of pluginUrls.keys()) {
+                    const pluginUrl = pluginUrls[pluginIndex];
+                    if (
+                        options?.trackProgress &&
+                        isSubscriptionInstallCancelled(subscription.id)
+                    ) {
+                        cancelled = true;
+                        break;
+                    }
                     expectedUrls.add(pluginUrl);
                     const result = await this.installPluginFromUrl(pluginUrl, {
                         notCheckVersion: this.appConfigService.getConfig(
@@ -736,9 +832,23 @@ class PluginManager implements IPluginManager, IInjectable {
                             expectedHashes.add(result.pluginHash);
                         }
                         successResults.push(result);
+                        subscriptionSuccess++;
                     } else {
                         failResults.push(result);
+                        subscriptionFailed++;
                     }
+                    if (options?.trackProgress) {
+                        setSubscriptionInstallProgress({
+                            subscriptionId: subscription.id,
+                            total,
+                            completed: pluginIndex + 1,
+                            success: subscriptionSuccess,
+                            failed: subscriptionFailed,
+                            running: true,
+                        });
+                    }
+                    // 让出 JS 线程，避免连续挂载插件时阻塞 UI。
+                    await delay(subscriptionInstallGap);
                 }
                 markSubscriptionSnapshot(
                     subscription.id,
@@ -747,17 +857,43 @@ class PluginManager implements IPluginManager, IInjectable {
                 );
                 updateSubscriptionInfo(subscription.id, {
                     lastUpdatedAt: Date.now(),
-                    pluginCount: pluginUrls.length,
+                    pluginCount: expectedUrls.size,
                 });
+                if (options?.trackProgress) {
+                    setSubscriptionInstallProgress({
+                        subscriptionId: subscription.id,
+                        total,
+                        completed: cancelled
+                            ? subscriptionSuccess + subscriptionFailed
+                            : total,
+                        success: subscriptionSuccess,
+                        failed: subscriptionFailed,
+                        running: false,
+                        cancelled,
+                    });
+                }
+                anyCancelled = anyCancelled || cancelled;
             } catch (e: any) {
+                if (options?.trackProgress) {
+                    setSubscriptionInstallProgress({
+                        subscriptionId: subscription.id,
+                        total,
+                        completed: 0,
+                        success: subscriptionSuccess,
+                        failed: subscriptionFailed,
+                        running: false,
+                    });
+                }
                 failResults.push({
                     success: false,
                     message: e?.message ?? "",
                     pluginUrl: subscription.url,
                 });
+            } finally {
+                clearSubscriptionInstallCancellation(subscription.id);
             }
         }
-        return { successResults, failResults };
+        return { successResults, failResults, cancelled: anyCancelled };
     }
 
     getSubscriptionAssociatedPlugins(subscriptionId: string) {

@@ -282,6 +282,8 @@ export interface ILanguageData {
     "pluginSetting.subscription.deleteTip": string; // 删除订阅提示
     "pluginSetting.subscription.updateFailedTitle": string; // 订阅更新失败明细
     "pluginSetting.subscription.copyUrl": string; // 复制订阅地址
+    "pluginSetting.subscriptionInstall.progress": string; // 订阅安装进度
+    "pluginSetting.subscriptionInstall.cancel": string; // 取消订阅安装
     "pluginSetting.origin.subscription": string; // 订阅
     "pluginSetting.origin.local": string; // 本地安装
     "pluginSetting.origin.network": string; // 网络安装
@@ -303,6 +305,9 @@ export interface ILanguageData {
     "toast.subscriptionAlreadyExists": string; // 订阅地址已存在
     "toast.updateSubscriptionFailed": string; // 订阅更新失败
     "toast.partialSubscriptionUpdateFailed": string; // 部分订阅更新失败
+    "toast.subscriptionInstallStarted": string; // 订阅后台安装已开始
+    "toast.subscriptionInstallCancelled": string; // 订阅安装已取消
+    "toast.fetchSubscriptionFailed": string; // 获取订阅插件列表失败
     "pluginSetting.pluginUpdateFailedDialogContent": string; // 插件更新失败对话框内容
 
     // 提示消息相关 - 插件操作
@@ -529,6 +534,14 @@ export interface ILanguageData {
     "dialog.downloadDialog.backupUrl": string; // 备用链接
     "dialog.editSheetDetail.sheetName": string; // 歌单名
     "dialog.subscriptionPluginDialog.title": string; // 订阅
+    "dialog.subscriptionInstall.title": string; // 选择订阅插件
+    "dialog.subscriptionInstall.subtitle": string; // 订阅插件数量说明
+    "dialog.subscriptionInstall.selectAll": string; // 全选
+    "dialog.subscriptionInstall.selectNone": string; // 全不选
+    "dialog.subscriptionInstall.selectedCount": string; // 已选数量
+    "dialog.subscriptionInstall.version": string; // 插件版本
+    "dialog.subscriptionInstall.confirm": string; // 开始安装
+    "dialog.subscriptionInstall.nothingSelected": string; // 未选择插件
     "dialog.markdownDialog.openExternalLink": string; // Markdown对话框打开外部链接
     "dialog.markdownDialog.clickToShowImage": string; // 点击展示图片
     "dialog.markdownDialog.loadFailed": string; // 图片加载失败

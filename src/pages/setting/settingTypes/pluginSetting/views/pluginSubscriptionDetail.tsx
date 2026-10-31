@@ -21,6 +21,8 @@ import HorizontalSafeAreaView from "@/components/base/horizontalSafeAreaView.tsx
 import globalStyle from "@/constants/globalStyle";
 import { showDialog } from "@/components/dialogs/useDialog";
 import AppBar from "@/components/base/appBar";
+import SubscriptionInstallBanner from "../components/subscriptionInstallBanner";
+import { IInstallPluginResult } from "@/types/core/pluginManager";
 import { useI18N } from "@/core/i18n";
 
 interface IRouteParams {
@@ -163,64 +165,95 @@ export default function PluginSubscriptionDetail() {
         });
     };
 
-    const onUpdate = async () => {
-        setLoading(true);
-        try {
-            const { successResults, failResults } =
-                await PluginManager.updateSubscription(subscription.id);
-            if (!failResults.length) {
-                Toast.success(t("toast.updateSubscriptionSuccess"));
-            } else if (!successResults.length) {
-                Toast.warn(t("toast.updateSubscriptionFailed"), {
-                    type: "warn",
-                    actionText: t("common.view"),
-                    duration: 6000,
-                    onActionClick: () => {
-                        showDialog("SimpleDialog", {
-                            title: t("pluginSetting.subscription.updateFailedTitle"),
-                            content: failResults.map(it =>
-                                `${it.pluginUrl ?? ""}\n${
-                                    t("pluginSetting.failReason", {
-                                        reason: it.message ?? "",
-                                    })
-                                }`
-                            ).join("\n-----\n"),
-                        });
-                    },
-                });
-            } else {
-                Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
-                    count: failResults.length,
-                }), {
-                    type: "warn",
-                    actionText: t("common.view"),
-                    duration: 6000,
-                    onActionClick: () => {
-                        showDialog("SimpleDialog", {
-                            title: t("pluginSetting.subscription.updateFailedTitle"),
-                            content: failResults.map(it =>
-                                `${it.pluginUrl ?? ""}\n${
-                                    t("pluginSetting.failReason", {
-                                        reason: it.message ?? "",
-                                    })
-                                }`
-                            ).join("\n-----\n"),
-                        });
-                    },
-                });
-            }
-        } catch (e: any) {
-            Toast.warn(t("toast.unknownError", {
-                reason: e?.message ?? e,
-            }));
+    const notifyUpdateResult = ({
+        successResults,
+        failResults,
+        cancelled,
+    }: {
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+        cancelled?: boolean;
+    }) => {
+        if (cancelled) {
+            Toast.warn(t("toast.subscriptionInstallCancelled"));
+            return;
         }
-        setLoading(false);
+        if (!failResults.length) {
+            Toast.success(t("toast.updateSubscriptionSuccess"));
+            return;
+        }
+        const showFailureDetails = () => {
+            showDialog("SimpleDialog", {
+                title: t("pluginSetting.subscription.updateFailedTitle"),
+                content: failResults.map(it =>
+                    `${it.pluginUrl ?? ""}\n${
+                        t("pluginSetting.failReason", {
+                            reason: it.message ?? "",
+                        })
+                    }`
+                ).join("\n-----\n"),
+            });
+        };
+        if (!successResults.length) {
+            Toast.warn(t("toast.updateSubscriptionFailed"), {
+                type: "warn",
+                actionText: t("common.view"),
+                duration: 6000,
+                onActionClick: showFailureDetails,
+            });
+        } else {
+            Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
+                count: failResults.length,
+            }), {
+                type: "warn",
+                actionText: t("common.view"),
+                duration: 6000,
+                onActionClick: showFailureDetails,
+            });
+        }
+    };
+
+    const onUpdate = () => {
+        PluginManager.getSubscriptionPluginList(subscription.url)
+            .then(candidates => {
+                const installedUrls = new Set(
+                    records.map(record => record.sourceUrl),
+                );
+                const selectedUrls = candidates
+                    .filter(it => installedUrls.has(it.url))
+                    .map(it => it.url);
+                showDialog("SubscriptionInstallDialog", {
+                    subscription,
+                    candidates,
+                    defaultSelectedUrls: selectedUrls.length
+                        ? selectedUrls
+                        : undefined,
+                    onConfirm: urls => {
+                        Toast.success(t("toast.subscriptionInstallStarted"));
+                        PluginManager.installSubscriptionPlugins(
+                            subscription,
+                            urls,
+                            candidates.map(it => it.url),
+                        )
+                            .then(notifyUpdateResult)
+                            .catch((e: any) => {
+                                Toast.warn(t("toast.unknownError", {
+                                    reason: e?.message ?? e,
+                                }));
+                            });
+                    },
+                });
+            })
+            .catch(() => {
+                Toast.warn(t("toast.fetchSubscriptionFailed"));
+            });
     };
 
     return (
         <>
             <AppBar>{subscription.name}</AppBar>
             <HorizontalSafeAreaView style={globalStyle.flex1}>
+                <SubscriptionInstallBanner />
                 <FlatList
                     style={styles.list}
                     data={[
