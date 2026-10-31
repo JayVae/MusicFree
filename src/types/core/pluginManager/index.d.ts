@@ -1,6 +1,24 @@
 type Plugin = any; // Placeholder for the actual Plugin type
 
 /**
+ * 订阅中的插件候选信息
+ */
+export interface ISubscriptionPluginCandidate {
+    name?: string;
+    version?: string;
+    url: string;
+}
+
+/**
+ * 订阅安装 / 更新结果
+ */
+export interface ISubscriptionUpdateResult {
+    successResults: IInstallPluginResult[];
+    failResults: IInstallPluginResult[];
+    cancelled?: boolean;
+}
+
+/**
  * 插件安装配置接口
  */
 export interface IInstallPluginConfig {
@@ -79,15 +97,34 @@ export interface IPluginManager {
      */
     updatePlugin(plugin: Plugin): Promise<void>;
 
-    updateSubscription(subscriptionId: string): Promise<{
-        successResults: IInstallPluginResult[];
-        failResults: IInstallPluginResult[];
-    }>;
+    updateSubscription(subscriptionId: string): Promise<ISubscriptionUpdateResult>;
 
-    updateAllSubscriptions(): Promise<{
-        successResults: IInstallPluginResult[];
-        failResults: IInstallPluginResult[];
-    }>;
+    /**
+     * 拉取订阅中的插件候选列表（.json 订阅）；非 .json 地址返回单个候选。
+     */
+    getSubscriptionPluginList(
+        url: string,
+    ): Promise<ISubscriptionPluginCandidate[]>;
+
+    /**
+     * 在后台串行安装订阅中选定的插件，进度通过 subscriptionInstall 状态展示。
+     */
+    installSubscriptionPlugins(
+        subscription: {
+            id: string;
+            name: string;
+            url: string;
+        },
+        pluginUrls: string[],
+        allPluginUrls?: string[],
+    ): Promise<ISubscriptionUpdateResult>;
+
+    /**
+     * 请求取消指定订阅的进行中安装；在当前插件完成后停止。
+     */
+    cancelSubscriptionInstall(subscriptionId: string): void;
+
+    updateAllSubscriptions(): Promise<ISubscriptionUpdateResult>;
 
     getSubscriptionAssociatedPlugins(subscriptionId: string): Plugin[];
 

@@ -34,6 +34,7 @@ import ThemeText from "@/components/base/themeText";
 import TextButton from "@/components/base/textButton";
 import ListItem from "@/components/base/listItem";
 import PluginItem from "../components/pluginItem";
+import SubscriptionInstallBanner from "../components/subscriptionInstallBanner";
 import { IIconName } from "@/components/base/icon.tsx";
 import { IInstallPluginResult } from "@/types/core/pluginManager";
 import { useI18N } from "@/core/i18n";
@@ -394,49 +395,47 @@ export default function PluginList() {
         setLoading(false);
     }
 
-    const updateSubscriptionById = async (subscriptionId: string) => {
-        setLoading(true);
-        try {
-            const { successResults, failResults } =
-                await PluginManager.updateSubscription(subscriptionId);
-            if (!failResults.length) {
-                Toast.success(t("toast.updateSubscriptionSuccess"));
-            } else if (!successResults.length) {
-                Toast.warn(t("toast.updateSubscriptionFailed"));
-            } else {
-                Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
-                    count: failResults.length,
-                }));
-            }
-        } catch (e: any) {
-            Toast.warn(t("toast.unknownError", {
-                reason: e?.message ?? e,
+    function onUpdateSubscriptionClick() {
+        handleSubscriptionInstallResult(PluginManager.updateAllSubscriptions());
+    }
+
+    const notifySubscriptionInstallResult = ({
+        successResults,
+        failResults,
+        cancelled,
+    }: {
+        successResults: IInstallPluginResult[];
+        failResults: IInstallPluginResult[];
+        cancelled?: boolean;
+    }) => {
+        if (cancelled) {
+            Toast.warn(t("toast.subscriptionInstallCancelled"));
+        } else if (!failResults.length) {
+            Toast.success(t("toast.updateSubscriptionSuccess"));
+        } else if (!successResults.length) {
+            Toast.warn(t("toast.updateSubscriptionFailed"));
+        } else {
+            Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
+                count: failResults.length,
             }));
         }
-        setLoading(false);
     };
 
-    async function onUpdateSubscriptionClick() {
-        setLoading(true);
-        try {
-            const { successResults, failResults } =
-                await PluginManager.updateAllSubscriptions();
-            if (!failResults.length) {
-                Toast.success(t("toast.updateSubscriptionSuccess"));
-            } else if (!successResults.length) {
-                Toast.warn(t("toast.updateSubscriptionFailed"));
-            } else {
-                Toast.warn(t("toast.partialSubscriptionUpdateFailed", {
-                    count: failResults.length,
+    const handleSubscriptionInstallResult = (
+        resultPromise: Promise<{
+            successResults: IInstallPluginResult[];
+            failResults: IInstallPluginResult[];
+            cancelled?: boolean;
+        }>,
+    ) => {
+        resultPromise
+            .then(notifySubscriptionInstallResult)
+            .catch((e: any) => {
+                Toast.warn(t("toast.unknownError", {
+                    reason: e?.message ?? e,
                 }));
-            }
-        } catch (e: any) {
-            Toast.warn(t("toast.unknownError", {
-                reason: e?.message ?? e,
-            }));
-        }
-        setLoading(false);
-    }
+            });
+    };
 
     const onAddSubscriptionSubmit = (
         subscribeItem: ISubscriptionItem,
@@ -460,7 +459,36 @@ export default function PluginList() {
         );
         hideDialog();
         // 订阅配置立即进入来源列表；首次拉取失败时仍保留空订阅组，便于手动重试。
-        updateSubscriptionById(normalized.id);
+        if (normalized.url.toLowerCase().endsWith(".json")) {
+            // 先拉取订阅插件列表，由用户选择要安装的插件后再后台安装。
+            PluginManager.getSubscriptionPluginList(normalized.url)
+                .then(candidates => {
+                    showDialog("SubscriptionInstallDialog", {
+                        subscription: normalized,
+                        candidates,
+                        onConfirm: selectedUrls => {
+                            Toast.success(t("toast.subscriptionInstallStarted"));
+                            handleSubscriptionInstallResult(
+                                PluginManager.installSubscriptionPlugins(
+                                    normalized,
+                                    selectedUrls,
+                                    candidates.map(it => it.url),
+                                ),
+                            );
+                        },
+                    });
+                })
+                .catch(() => {
+                    Toast.warn(t("toast.fetchSubscriptionFailed"));
+                });
+        } else {
+            Toast.success(t("toast.subscriptionInstallStarted"));
+            handleSubscriptionInstallResult(
+                PluginManager.installSubscriptionPlugins(normalized, [
+                    normalized.url,
+                ]),
+            );
+        }
     };
 
     const sections = [
@@ -668,6 +696,7 @@ export default function PluginList() {
         <>
             <AppBar>{t("sidebar.pluginManagement")}</AppBar>
             <HorizontalSafeAreaView style={style.wrapper}>
+                <SubscriptionInstallBanner />
                 {loading ? (
                     <Loading />
                 ) : (

@@ -2,7 +2,7 @@
 
 **中文** | [English](./readme-en.md)
 
-这是 [maotoumao/MusicFree](https://github.com/maotoumao/MusicFree) 的个人功能分支，基于上游 `v0.6.2` 修改，当前版本为 `v0.6.3`。项目保留上游的插件化音乐播放器架构，重点增强了 Android 上的播放源容错、插件管理和下载结果追踪。
+这是 [maotoumao/MusicFree](https://github.com/maotoumao/MusicFree) 的个人功能分支，基于上游 `v0.6.2` 修改，当前版本为 `v0.6.4`。项目保留上游的插件化音乐播放器架构，重点增强了 Android 上的播放源容错、插件管理和下载结果追踪。
 
 > 本仓库是个人使用与学习用途的分叉，不是上游官方发行版。插件本身不随本应用分发，也不提供任何音源。
 
@@ -22,6 +22,7 @@
 
 ### 插件订阅与来源分组
 - 支持插件订阅源的添加、更新、删除和状态查看。
+- 导入订阅时先列出插件供勾选，安装后台串行执行，支持进度与取消；单个插件下载超时会快速失败。
 - 同名插件更新时执行版本比较，低版本重复内容可归档，避免误降级。
 - 插件可按本地、网络和订阅来源分组，支持组级状态管理。
 
@@ -36,7 +37,7 @@
 
 ## 下载
 
-从 [Releases](https://github.com/JayVae/MusicFree/releases) 获取 `v0.6.3` Android APK：
+从 [Releases](https://github.com/JayVae/MusicFree/releases) 获取 `v0.6.4` Android APK：
 
 | 文件 | 适用场景 |
 |---|---|
