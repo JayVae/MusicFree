@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-10-31
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9 与最终 Android 回归均已验收通过；R10 订阅导入与安装流程优化已完成代码与静态验证，待 Android 真机验收。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9、R10 与最终 Android 回归均已验收通过；v0.6.4 已发布。
 
 ## 1. 分支
 
@@ -210,4 +210,6 @@ R9 Android 真机已由用户构建验收通过。
 - `src/components/dialogs/components/subscriptionInstallDialog.tsx`：插件勾选。
 - `src/pages/setting/settingTypes/pluginSetting/components/subscriptionInstallBanner.tsx`：进度 / 取消横幅。
 
-验证：`tsc`、ESLint、Jest、`git diff --check`、Android `assembleDebug` 与 Metro production bundle 均通过；待真机验收。
+验证：`tsc`、ESLint、Jest、`git diff --check`、Android `assembleDebug` 与 Metro production bundle 均通过；Android 真机验收通过。
+
+收尾（2026-10-31）：已合并到 `master`，版本提升为 `0.6.4`，打 tag `v0.6.4` 并推送远程，由 GitHub Actions 构建并发布 Release。

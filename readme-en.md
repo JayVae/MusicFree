@@ -2,7 +2,7 @@
 
 [中文](./readme.md) | **English**
 
-This is a personal fork of [maotoumao/MusicFree](https://github.com/maotoumao/MusicFree), based on upstream `v0.6.2` and currently released as `v0.6.3`. It keeps the upstream plugin-based player architecture and focuses on Android playback resilience, plugin management, and download observability.
+This is a personal fork of [maotoumao/MusicFree](https://github.com/maotoumao/MusicFree), based on upstream `v0.6.2` and currently released as `v0.6.4`. It keeps the upstream plugin-based player architecture and focuses on Android playback resilience, plugin management, and download observability.
 
 > This repository is for personal use and study. It is not an official upstream release. The app does not bundle plugins or music sources.
 
@@ -22,6 +22,7 @@ This is a personal fork of [maotoumao/MusicFree](https://github.com/maotoumao/Mu
 
 ### Plugin subscriptions and source groups
 - Manage plugin subscriptions, updates, removal, and status.
+- Preview subscription plugins before install, with background installation, progress, cancellation, and per-plugin download timeouts.
 - Version checks prevent accidental downgrades; duplicate lower-version plugins can be archived.
 - Group plugins by local, network, or subscription origin with group-level actions.
 
