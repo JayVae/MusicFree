@@ -6,6 +6,10 @@ import Button from "@/components/base/textButton.tsx";
 import ThemeText from "@/components/base/themeText";
 import VerticalSafeAreaView from "@/components/base/verticalSafeAreaView";
 import globalStyle from "@/constants/globalStyle";
+import {
+    clearFileSelectorAction,
+    runFileSelectorAction,
+} from "@/core/fileSelectorAction";
 import i18n from "@/core/i18n";
 import { useParams } from "@/core/router";
 import useColors from "@/hooks/useColors";
@@ -40,8 +44,6 @@ export default function FileSelector() {
         fileType = "file-and-folder",
         multi = true,
         actionText = i18n.t("common.sure"),
-        matchExtension,
-        onAction,
     } = useParams<"file-selector">() ?? {};
 
     const [currentPath, setCurrentPath] = useState<IPathItem>({
@@ -59,6 +61,12 @@ export default function FileSelector() {
     const navigation = useNavigation();
     const colors = useColors();
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        return () => {
+            clearFileSelectorAction();
+        };
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -117,13 +125,7 @@ export default function FileSelector() {
                     }
                     if (fileType === "file" || fileType === "file-and-folder") {
                         files = res
-                            .filter(
-                                _ =>
-                                    _.isFile() &&
-                                    (matchExtension
-                                        ? matchExtension(_.path)
-                                        : true),
-                            )
+                            .filter(_ => _.isFile())
                             .map(_ => ({
                                 type: "file",
                                 path: _.path,
@@ -266,7 +268,8 @@ export default function FileSelector() {
             <Pressable
                 onPress={async () => {
                     if (checkedItems.length) {
-                        const shouldBack = await onAction?.(checkedItems);
+                        const shouldBack =
+                            await runFileSelectorAction(checkedItems);
                         if (shouldBack) {
                             navigation.goBack();
                         }

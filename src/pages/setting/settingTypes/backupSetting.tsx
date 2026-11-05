@@ -1,5 +1,6 @@
 import ListItem, { ListItemHeader } from "@/components/base/listItem";
 import Backup from "@/core/backup";
+import { setFileSelectorAction } from "@/core/fileSelectorAction";
 import { ROUTE_PATH, useNavigate } from "@/core/router";
 import Toast from "@/utils/toast";
 import React from "react";
@@ -30,40 +31,40 @@ export default function BackupSetting() {
 
 
     const onBackupToLocal = async () => {
+        setFileSelectorAction(async selectedFiles => {
+            const raw = Backup.backup();
+            const folder = selectedFiles[0]?.path;
+            return new Promise(resolve => {
+                showDialog("LoadingDialog", {
+                    title: t("backupAndResume.backupDialogTitle"),
+                    loadingText: t("backupAndResume.backuping"),
+                    promise: writeInChunks(
+                        `${folder}${folder?.endsWith("/") ? "" : "/"
+                        }backup.json`,
+                        raw,
+                    ),
+                    onResolve(_, hideDialog) {
+                        Toast.success(t("toast.backupSuccess"));
+                        hideDialog();
+                        resolve(true);
+                    },
+                    onCancel(hideDialog) {
+                        hideDialog();
+                        resolve(false);
+                    },
+                    onReject(reason, hideDialog) {
+                        hideDialog();
+                        resolve(false);
+                        console.log(reason);
+                        Toast.warn(t("toast.backupFail", { reason: reason?.message ?? reason }));
+                    },
+                });
+            });
+        });
         navigate(ROUTE_PATH.FILE_SELECTOR, {
             fileType: "folder",
             multi: false,
             actionText: t("backupAndResume.beginBackup"),
-            async onAction(selectedFiles) {
-                const raw = Backup.backup();
-                const folder = selectedFiles[0]?.path;
-                return new Promise(resolve => {
-                    showDialog("LoadingDialog", {
-                        title: t("backupAndResume.backupDialogTitle"),
-                        loadingText: t("backupAndResume.backuping"),
-                        promise: writeInChunks(
-                            `${folder}${folder?.endsWith("/") ? "" : "/"
-                            }backup.json`,
-                            raw,
-                        ),
-                        onResolve(_, hideDialog) {
-                            Toast.success(t("toast.backupSuccess"));
-                            hideDialog();
-                            resolve(true);
-                        },
-                        onCancel(hideDialog) {
-                            hideDialog();
-                            resolve(false);
-                        },
-                        onReject(reason, hideDialog) {
-                            hideDialog();
-                            resolve(false);
-                            console.log(reason);
-                            Toast.warn(t("toast.backupFail", { reason: reason?.message ?? reason }));
-                        },
-                    });
-                });
-            },
         });
     };
 
