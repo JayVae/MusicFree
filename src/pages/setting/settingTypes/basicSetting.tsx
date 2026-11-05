@@ -8,6 +8,7 @@ import { showPanel } from "@/components/panels/usePanel";
 import { SortType } from "@/constants/commonConst.ts";
 import pathConst from "@/constants/pathConst";
 import Config, { useAppConfig } from "@/core/appConfig";
+import { setFileSelectorAction } from "@/core/fileSelectorAction";
 import { clearMediaSourceFallbackCache } from "@/core/mediaSourceResolver";
 import { useI18N } from "@/core/i18n";
 import { ROUTE_PATH, useNavigate } from "@/core/router";
@@ -350,24 +351,26 @@ export default function BasicSetting() {
                         </ThemeText>
                     ),
                     onPress() {
+                        setFileSelectorAction(async selectedFiles => {
+                            try {
+                                const targetDir = selectedFiles[0];
+                                await readdir(targetDir.path);
+                                Config.setConfig(
+                                    "basic.downloadPath",
+                                    targetDir.path,
+                                );
+                                return true;
+                            } catch {
+                                Toast.warn(
+                                    t("toast.folderNotExistOrNoPermission"),
+                                );
+                                return false;
+                            }
+                        });
                         navigate<"file-selector">(ROUTE_PATH.FILE_SELECTOR, {
                             fileType: "folder",
                             multi: false,
                             actionText: t("basicSettings.fileSelector.selectFolder"),
-                            async onAction(selectedFiles) {
-                                try {
-                                    const targetDir = selectedFiles[0];
-                                    await readdir(targetDir.path);
-                                    Config.setConfig(
-                                        "basic.downloadPath",
-                                        targetDir.path,
-                                    );
-                                    return true;
-                                } catch {
-                                    Toast.warn(t("toast.folderNotExistOrNoPermission"));
-                                    return false;
-                                }
-                            },
                         });
                     },
                 },
