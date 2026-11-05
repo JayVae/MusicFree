@@ -141,6 +141,7 @@ export interface ILanguageData {
     "sheetDetail.sortMusic": string; // 排序音乐
     "sheetDetail.batchChangeSource": string; // 批量临时换源
     "sheetDetail.batchChangeSourceWithCount": string; // 批量临时换源（含数量）
+    "sheetDetail.batchReplaceMetadata": string; // 重新搜索并替换歌曲
     "sheetDetail.sortMusicOption.byTitle": string; // 按标题排序
     "sheetDetail.sortMusicOption.byArtist": string; // 按艺术家排序
     "sheetDetail.sortMusicOption.byAlbum": string; // 按专辑排序
@@ -275,7 +276,11 @@ export interface ILanguageData {
     "pluginSetting.sourceReplacement.status.disabled": string; // 原插件已禁用
     "pluginSetting.sourceReplacement.status.load-error": string; // 原插件加载失败
     "pluginSetting.sourceReplacement.status.unsupported": string; // 原插件不支持取源
+    "pluginSetting.sourceReplacement.status.unsupported-search": string; // 目标插件不支持搜索
     "pluginSetting.sourceReplacement.status.available": string; // 原插件可用
+    "pluginSetting.sourceReplacement.confirmTitle": string; // 旧音源迁移确认标题
+    "pluginSetting.sourceReplacement.confirmContent": string; // 旧音源迁移确认内容
+    "pluginSetting.sourceReplacement.migrationTitle": string; // 旧音源迁移标题
     "pluginSetting.stat.installed": string; // 已安装
     "pluginSetting.stat.subscriptions": string; // 订阅
     "pluginSetting.stat.archived": string; // 已归档
@@ -319,6 +324,11 @@ export interface ILanguageData {
     "pluginSetting.origin.actions.disable": string; // 整组禁用
     "pluginSetting.origin.actions.archive": string; // 整组归档
     "pluginSetting.origin.actions.restore": string; // 整组恢复
+    "pluginSetting.origin.actions.delete": string; // 删除组内全部插件
+    "pluginSetting.origin.deleteContent": string; // 整组删除确认
+    "pluginSetting.origin.deleting": string; // 正在删除组内插件
+    "pluginSetting.origin.deleteSuccess": string; // 组内插件已删除
+    "pluginSetting.origin.deleteFailed": string; // 组内插件删除失败
     "pluginSetting.sort.manage": string; // 调整插件顺序
     "pluginSetting.sort.manageTip": string; // 调整插件顺序提示
     "toast.updateSubscriptionSuccess": string; // 订阅更新成功
@@ -689,6 +699,22 @@ export interface ILanguageData {
     "dialog.batchSource.status.timeout": string; // 超时
     "dialog.batchSource.status.current": string; // 当前播放跳过
     "dialog.batchSource.status.skipped": string; // 已跳过
+    "dialog.sourceMigration.emptySheet": string; // 歌单为空
+    "dialog.sourceMigration.noTargets": string; // 无可用目标插件
+    "dialog.sourceMigration.selectTip": string; // 选择目标提示
+    "dialog.sourceMigration.confirmTitle": string; // 重新匹配确认标题
+    "dialog.sourceMigration.confirmContent": string; // 重新匹配确认内容
+    "dialog.sourceMigration.title": string; // 重新匹配标题
+    "dialog.sourceMigration.completed": string; // 重新匹配完成
+    "dialog.sourceMigration.background": string; // 后台运行
+    "dialog.sourceMigration.backgroundCompleted": string; // 后台替换完成
+    "dialog.sourceMigration.backgroundFailed": string; // 后台替换失败
+    "dialog.sourceMigration.summary": string; // 替换结果统计
+    "dialog.sourceMigration.status.pending": string; // 等待处理
+    "dialog.sourceMigration.status.success": string; // 替换成功
+    "dialog.sourceMigration.status.fail": string; // 替换失败
+    "dialog.sourceMigration.status.canceled": string; // 已取消
+    "dialog.sourceMigration.status.targetUnavailable": string; // 目标不可用
 }
 
 

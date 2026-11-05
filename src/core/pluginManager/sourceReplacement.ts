@@ -43,7 +43,8 @@ function loadSourceReplacementRecords(): SourceReplacementRecords {
         if (
             !sourcePlatform ||
             !targetPluginName ||
-            sourcePlatform === localPluginPlatform
+            sourcePlatform === localPluginPlatform ||
+            sourcePlatform === targetPluginName
         ) {
             return;
         }
@@ -71,7 +72,17 @@ export function getSourceReplacementTarget(sourcePlatform?: string | null) {
     if (!platform) {
         return null;
     }
-    return getSourceReplacementRecords()[platform]?.targetPluginName ?? null;
+    const target = getSourceReplacementRecords()[platform]?.targetPluginName;
+    return target && target !== platform ? target : null;
+}
+
+export function getSourceReplacementRecord(sourcePlatform?: string | null) {
+    const platform = normalizePlatform(sourcePlatform);
+    if (!platform) {
+        return null;
+    }
+    const record = getSourceReplacementRecords()[platform];
+    return record && record.targetPluginName !== platform ? record : null;
 }
 
 export function setSourceReplacement(
@@ -80,7 +91,15 @@ export function setSourceReplacement(
 ) {
     const platform = normalizePlatform(sourcePlatform);
     const target = targetPluginName.trim();
-    if (!platform || !target || platform === localPluginPlatform) {
+    if (
+        !platform ||
+        !target ||
+        platform === localPluginPlatform ||
+        platform === target
+    ) {
+        if (platform && platform === target) {
+            removeSourceReplacement(platform);
+        }
         return false;
     }
 
@@ -143,13 +162,45 @@ export function summarizeSourceReferences(
         );
 }
 
-export function collectSourceReferences(): ISourceReferenceSummary[] {
+export function collectSourceMusicItems(sourcePlatform: string) {
+    const platform = normalizePlatform(sourcePlatform);
+    if (!platform) {
+        return [];
+    }
+
     const playlistMusic = MusicSheet.backupSheets()
         .flatMap(sheet => sheet.musicList ?? []);
     const playbackQueue = PersistStatus.get("music.playList") ?? [];
     const currentMusic = PersistStatus.get("music.musicItem");
     const downloadedMusic = getDownloadHistory()
         .map(record => record.musicItem);
+    const uniqueMusicItems = new Map<string, IMusic.IMusicItem>();
+
+    [
+        ...playlistMusic,
+        ...playbackQueue,
+        currentMusic,
+        ...musicHistory.history,
+        ...LocalMusicSheet.getMusicList(),
+        ...downloadedMusic,
+    ].forEach(musicItem => {
+        if (
+            normalizePlatform(musicItem?.platform) !== platform ||
+            !musicItem?.id
+        ) {
+            return;
+        }
+        uniqueMusicItems.set(getMediaUniqueKey(musicItem), musicItem);
+    });
+
+    return [...uniqueMusicItems.values()];
+}
+
+export function collectSourceReferences(): ISourceReferenceSummary[] {
+    const playlistMusic = MusicSheet.backupSheets()
+        .flatMap(sheet => sheet.musicList ?? []);
+    const playbackQueue = PersistStatus.get("music.playList") ?? [];
+    const currentMusic = PersistStatus.get("music.musicItem");
 
     return summarizeSourceReferences([
         ...playlistMusic,
@@ -157,6 +208,6 @@ export function collectSourceReferences(): ISourceReferenceSummary[] {
         currentMusic,
         ...musicHistory.history,
         ...LocalMusicSheet.getMusicList(),
-        ...downloadedMusic,
+        ...getDownloadHistory().map(record => record.musicItem),
     ]);
 }

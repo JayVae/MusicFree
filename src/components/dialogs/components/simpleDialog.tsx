@@ -8,7 +8,8 @@ interface ISimpleDialogProps {
     content: string | JSX.Element;
     okText?: string;
     cancelText?: string;
-    onOk?: () => void;
+    /** 返回 false 可阻止当前弹窗关闭，用于在 onOk 中打开后续弹窗。 */
+    onOk?: () => void | boolean | Promise<void | boolean>;
     onCancel?: () => void;
 }
 export default function SimpleDialog(props: ISimpleDialogProps) {
@@ -30,8 +31,9 @@ export default function SimpleDialog(props: ISimpleDialogProps) {
                 title: okText ?? t("common.confirm"),
                 type: "primary",
                 onPress() {
-                    onOk?.();
-                    hideDialog();
+                    if (onOk?.() !== false) {
+                        hideDialog();
+                    }
                 },
             },
         ]

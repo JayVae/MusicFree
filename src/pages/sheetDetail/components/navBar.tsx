@@ -9,6 +9,7 @@ import {
     findBatchSourceCandidates,
     getBatchSourceTargetPlugins,
 } from "@/core/mediaSourceBatch";
+import { getSourceMigrationTargetPlugins } from "@/core/sourceMigration";
 import MusicSheet, { useSheetItem } from "@/core/musicSheet";
 import { ROUTE_PATH, useParams } from "@/core/router";
 import { default as Toast, default as toast } from "@/utils/toast";
@@ -105,6 +106,71 @@ export default function () {
                                                 targetPluginName:
                                                     value === "__auto__" ? undefined : String(value),
                                             });
+                                        },
+                                    });
+                                },
+                            });
+                        },
+                    },
+                    {
+                        icon: "arrows-left-right",
+                        title: t("sheetDetail.batchReplaceMetadata"),
+                        onPress() {
+                            if (!musicSheet?.musicList?.length) {
+                                Toast.warn(t("dialog.sourceMigration.emptySheet"));
+                                return;
+                            }
+                            const targetPlugins = getSourceMigrationTargetPlugins(
+                                pluginManager,
+                            );
+                            if (!targetPlugins.length) {
+                                Toast.warn(t(
+                                    "dialog.sourceMigration.noTargets",
+                                ));
+                                return;
+                            }
+                            showDialog("RadioDialog", {
+                                title: t("sheetDetail.batchReplaceMetadata"),
+                                tip: t("dialog.sourceMigration.selectTip"),
+                                content: targetPlugins.map(plugin => plugin.name),
+                                onOk(value) {
+                                    const targetPluginName = String(value);
+                                    showDialog("SimpleDialog", {
+                                        title: t(
+                                            "dialog.sourceMigration.confirmTitle",
+                                        ),
+                                        content: t(
+                                            "dialog.sourceMigration.confirmContent",
+                                            {
+                                                count: musicSheet.musicList.length,
+                                                target: targetPluginName,
+                                            },
+                                        ),
+                                        onOk() {
+                                            showDialog("SourceMigrationDialog", {
+                                                title: t(
+                                                    "dialog.sourceMigration.title",
+                                                    {
+                                                        target: targetPluginName,
+                                                    },
+                                                ),
+                                                musicItems: musicSheet.musicList,
+                                                targetPluginName,
+                                                scope: {
+                                                    type: "sheet",
+                                                    sheetId: id,
+                                                },
+                                                onCompleted(states, replacedCount) {
+                                                    Toast.success(t(
+                                                        "dialog.sourceMigration.completed",
+                                                        {
+                                                            replaced: replacedCount,
+                                                            total: states.length,
+                                                        },
+                                                    ));
+                                                },
+                                            });
+                                            return false;
                                         },
                                     });
                                 },

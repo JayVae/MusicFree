@@ -48,6 +48,8 @@ import {
 import { IPluginManager } from "@/types/core/pluginManager";
 import { ImgAsset } from "@/constants/assetsConst";
 import { resolveImportedAssetOrPath } from "@/utils/fileUtils";
+import { getSourceReplacementRecord } from "../pluginManager/sourceReplacement";
+import { persistResolvedMusicReplacement } from "../sourceMigration";
 
 
 
@@ -504,9 +506,12 @@ class TrackPlayer extends EventEmitter<{
             let track: IMusic.IMusicItem;
 
             // 5.1 通过插件获取音源
-            const plugin = this.pluginManagerService.getMediaSourcePlugin(
+            const sourceReplacement = getSourceReplacementRecord(
                 musicItem.platform,
             );
+            const plugin = sourceReplacement
+                ? undefined
+                : this.pluginManagerService.getByName(musicItem.platform);
             // 5.2 获取音质排序
             const qualityOrder = getQualityOrder(
                 this.configService.getConfig("basic.defaultPlayQuality") ?? "standard",
@@ -518,9 +523,14 @@ class TrackPlayer extends EventEmitter<{
             this.sourceFallbackResolver = this.createSourceFallbackResolver(musicItem);
 
             // 5.3 批量换源已得到的临时源直接优先使用；失败后由 PlaybackError 继续候选流程
-            const cachedFallback = shouldFallback
+            const fallbackCache = (shouldFallback || sourceReplacement)
                 ? getMediaSourceFallbackCache(musicItem)
                 : null;
+            const cachedFallback = sourceReplacement &&
+                fallbackCache?.resolvedByPluginName !==
+                    sourceReplacement.targetPluginName
+                ? null
+                : fallbackCache;
             let source: IPlugin.IMediaSourceResult | null = null;
             if (cachedFallback?.source.url && this.isCurrentMusic(musicItem)) {
                 source = cachedFallback.source;
@@ -567,7 +577,7 @@ class TrackPlayer extends EventEmitter<{
 
                 // 5.4 原始插件没有有效源，进入集中换源解析器
                 if (!source && !musicItem.url) {
-                    if (shouldFallback) {
+                    if (shouldFallback || sourceReplacement) {
                         const fallbackSource = await this.sourceFallbackResolver?.resolveNext(
                             () => !this.isCurrentMusic(musicItem),
                         );
@@ -945,7 +955,10 @@ class TrackPlayer extends EventEmitter<{
         const shouldFallback = this.configService.getConfig(
             "basic.tryChangeSourceWhenPlayFail",
         ) ?? true;
-        if (!shouldFallback) {
+        const sourceReplacement = getSourceReplacementRecord(
+            musicItem.platform,
+        );
+        if (!shouldFallback && !sourceReplacement) {
             return null;
         }
 
@@ -955,10 +968,13 @@ class TrackPlayer extends EventEmitter<{
             this.configService,
             {
                 sheetId: this.playSourceContext?.sheetId,
-                preferredPluginName: getPlaylistSourcePreference(
-                    this.playSourceContext?.sheetId,
-                    musicItem.platform,
-                )?.pluginName,
+                preferredPluginName: !shouldFallback && sourceReplacement
+                    ? sourceReplacement.targetPluginName
+                    : getPlaylistSourcePreference(
+                        this.playSourceContext?.sheetId,
+                        musicItem.platform,
+                    )?.pluginName,
+                preferredOnly: !shouldFallback && !!sourceReplacement,
                 onResolved: resolved => {
                     setTemporarySourcePluginName(resolved.resolvedByPluginName);
                     recordPlaylistSourceSuccess(
@@ -966,6 +982,19 @@ class TrackPlayer extends EventEmitter<{
                         musicItem.platform,
                         resolved.resolvedByPluginName,
                     );
+                    const replacement = getSourceReplacementRecord(
+                        musicItem.platform,
+                    );
+                    if (
+                        replacement &&
+                        replacement.targetPluginName ===
+                            resolved.resolvedByPluginName
+                    ) {
+                        persistResolvedMusicReplacement(
+                            musicItem,
+                            resolved.candidateMusicItem as IMusic.IMusicItem,
+                        ).catch(() => {});
+                    }
                 },
                 onPreferredPluginFailure: pluginName => {
                     clearPlaylistSourcePreference(
@@ -983,9 +1012,12 @@ class TrackPlayer extends EventEmitter<{
         const fallbackEnabled = this.configService.getConfig(
             "basic.tryChangeSourceWhenPlayFail",
         ) ?? true;
+        const sourceReplacement = musicItem
+            ? getSourceReplacementRecord(musicItem.platform)
+            : null;
 
         if (
-            !fallbackEnabled ||
+            (!fallbackEnabled && !sourceReplacement) ||
             !musicItem ||
             !isSameMediaItem(currentTrack ? (currentTrack as unknown as IMusic.IMusicItem) : null, musicItem) ||
             currentTrack?.url === TrackPlayer.fakeAudioUrl ||

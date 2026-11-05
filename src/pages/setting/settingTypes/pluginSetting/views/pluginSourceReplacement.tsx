@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import AppBar from "@/components/base/appBar";
 import Empty from "@/components/base/empty";
@@ -10,6 +10,7 @@ import globalStyle from "@/constants/globalStyle";
 import { useI18N } from "@/core/i18n";
 import {
     Plugin,
+    default as pluginManager,
     usePluginEnabledStates,
     useSortedPlugins,
 } from "@/core/pluginManager";
@@ -18,12 +19,16 @@ import {
     usePluginHealthRecords,
 } from "@/core/pluginManager/health";
 import {
+    collectSourceMusicItems,
     collectSourceReferences,
     ISourceReplacementRecord,
     removeSourceReplacement,
     setSourceReplacement,
     useSourceReplacementRecords,
 } from "@/core/pluginManager/sourceReplacement";
+import {
+    getSourceMigrationTargetPlugins,
+} from "@/core/sourceMigration";
 import { PluginState } from "@/core/pluginManager/plugin";
 import useColors from "@/hooks/useColors";
 import rpx from "@/utils/rpx";
@@ -34,6 +39,7 @@ type SourceAvailability =
     | "disabled"
     | "load-error"
     | "unsupported"
+    | "unsupported-search"
     | PluginHealthStatus;
 
 interface ISourceRow {
@@ -83,6 +89,27 @@ function getAvailabilityText(
     return t(`pluginSetting.sourceReplacement.status.${availability}` as any);
 }
 
+function getMigrationTargetAvailability(
+    plugin: Plugin | undefined,
+    enabled: boolean,
+    healthStatus: PluginHealthStatus,
+): SourceAvailability {
+    const availability = getSourceAvailability(
+        plugin,
+        enabled,
+        healthStatus,
+    );
+    if (
+        availability === PluginHealthStatus.Available ||
+        availability === PluginHealthStatus.Quarantined
+    ) {
+        return plugin?.supportedMethods.has("search")
+            ? availability
+            : "unsupported-search";
+    }
+    return availability;
+}
+
 export default function PluginSourceReplacement() {
     const { t } = useI18N();
     const colors = useColors();
@@ -90,15 +117,15 @@ export default function PluginSourceReplacement() {
     const enabledStates = usePluginEnabledStates(plugins);
     const healthRecords = usePluginHealthRecords();
     const replacementRecords = useSourceReplacementRecords();
-
-    const sourceRows = useMemo(() => {
-        const references = collectSourceReferences();
+    const [, setMigrationVersion] = useState(0);
+    const sourceReferences = collectSourceReferences();
+    const sourceRows = (() => {
         const referenceCountMap = new Map(
-            references.map(item => [item.platform, item.count]),
+            sourceReferences.map(item => [item.platform, item.count]),
         );
         const pluginMap = new Map(plugins.map(plugin => [plugin.name, plugin]));
         const platforms = new Set([
-            ...references.map(item => item.platform),
+            ...sourceReferences.map(item => item.platform),
             ...Object.keys(replacementRecords),
         ]);
 
@@ -115,7 +142,7 @@ export default function PluginSourceReplacement() {
                     ? pluginMap.get(replacement.targetPluginName)
                     : undefined;
                 const targetAvailability = replacement
-                    ? getSourceAvailability(
+                    ? getMigrationTargetAvailability(
                         targetPlugin,
                         targetPlugin
                             ? enabledStates[targetPlugin.name] !== false
@@ -134,29 +161,20 @@ export default function PluginSourceReplacement() {
                 };
             })
             .filter(row =>
-                row.availability !== PluginHealthStatus.Available ||
-                !!row.replacement
+                row.count > 0 || !!row.replacement
             )
             .sort((a, b) =>
                 Number(!!b.replacement) - Number(!!a.replacement) ||
+                Number(a.availability === PluginHealthStatus.Available) -
+                    Number(b.availability === PluginHealthStatus.Available) ||
                 b.count - a.count ||
                 a.platform.localeCompare(b.platform),
             );
-    }, [
-        enabledStates,
-        healthRecords,
-        plugins,
-        replacementRecords,
-    ]);
+    })();
 
     const chooseReplacement = (row: ISourceRow) => {
-        const targets = plugins.filter(plugin =>
-            plugin.name !== row.platform &&
-            getSourceAvailability(
-                plugin,
-                enabledStates[plugin.name] !== false,
-                healthRecords[plugin.name]?.status ?? PluginHealthStatus.Available,
-            ) === PluginHealthStatus.Available
+        const targets = getSourceMigrationTargetPlugins(
+            pluginManager,
         );
 
         if (!targets.length && !row.replacement) {
@@ -186,12 +204,60 @@ export default function PluginSourceReplacement() {
             onOk(value) {
                 if (value === CLEAR_REPLACEMENT_VALUE) {
                     removeSourceReplacement(row.platform);
+                    setMigrationVersion(version => version + 1);
                     Toast.success(t("pluginSetting.sourceReplacement.cleared"));
                     return;
                 }
-                if (setSourceReplacement(row.platform, String(value))) {
-                    Toast.success(t("pluginSetting.sourceReplacement.setSuccess"));
-                }
+                const targetPluginName = String(value);
+                const sourceMusicItems = collectSourceMusicItems(row.platform);
+                showDialog("SimpleDialog", {
+                    title: t("pluginSetting.sourceReplacement.confirmTitle"),
+                    content: t(
+                        "pluginSetting.sourceReplacement.confirmContent",
+                        {
+                            count: sourceMusicItems.length,
+                            source: row.platform,
+                            target: targetPluginName,
+                        },
+                    ),
+                    onOk() {
+                        if (row.platform === targetPluginName) {
+                            removeSourceReplacement(row.platform);
+                        } else {
+                            setSourceReplacement(
+                                row.platform,
+                                targetPluginName,
+                            );
+                        }
+                        if (!sourceMusicItems.length) {
+                            Toast.success(t(
+                                "pluginSetting.sourceReplacement.setSuccess",
+                            ));
+                            setMigrationVersion(version => version + 1);
+                            return;
+                        }
+                        showDialog("SourceMigrationDialog", {
+                            title: t(
+                                "pluginSetting.sourceReplacement.migrationTitle",
+                                { target: targetPluginName },
+                            ),
+                            musicItems: sourceMusicItems,
+                            targetPluginName,
+                            scope: { type: "all" },
+                            onCompleted(states, replacedCount) {
+                                setMigrationVersion(version => version + 1);
+                                Toast.success(t(
+                                    "dialog.sourceMigration.completed",
+                                    {
+                                        replaced: replacedCount,
+                                        total: states.length,
+                                    },
+                                ));
+                            },
+                        });
+                        return false;
+                    },
+                });
             },
         });
     };
@@ -222,17 +288,14 @@ export default function PluginSourceReplacement() {
                                 })
                                 : t("pluginSetting.sourceReplacement.notConfigured"),
                             item.targetAvailability &&
-                                item.targetAvailability !== PluginHealthStatus.Available
+                                item.targetAvailability !== PluginHealthStatus.Available &&
+                                item.targetAvailability !== PluginHealthStatus.Quarantined
                                 ? t("pluginSetting.sourceReplacement.targetUnavailable", {
                                     reason: getAvailabilityText(
                                         item.targetAvailability,
                                         t,
                                     ),
                                 })
-                                : undefined,
-                            item.replacement &&
-                                item.availability === PluginHealthStatus.Available
-                                ? t("pluginSetting.sourceReplacement.originalAvailable")
                                 : undefined,
                         ].filter(Boolean).join(" · ");
 
