@@ -59,6 +59,12 @@ node node_modules/react-native/cli.js bundle \
   --bundle-output /tmp/index.android.bundle --assets-dest /tmp/assets
 ```
 
+**APK 构建约束**：
+
+- 普通 `src/` JavaScript / TypeScript 改动不主动构建 Debug APK，使用 Metro 热更新或用户现有 Debug 包验证。
+- 只有涉及 `android/`、`ios/`、`package.json` 中的原生库、`app.json` 或其他原生 / 构建配置时，才提醒用户构建 Debug APK。
+- 上述原生 / 配置变更默认由用户构建；代理不主动执行 Android debug / release 构建，除非用户明确要求。
+
 ## 目录与职责
 
 ```text

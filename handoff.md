@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-11-05
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9、R10 与最终 Android 回归均已验收通过；v0.6.4 已发布。R11 旧音源替换已完成代码、静态验证和 Android debug 构建，待真机验收。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9、R10 与最终 Android 回归均已验收通过；v0.6.4 已发布。R11 旧音源替换已根据真机反馈修订为元数据迁移方案，待用户通过 Metro / Android 真机验收。
 
 ## 1. 分支
 
@@ -175,6 +175,7 @@ R9 Android 真机已由用户构建验收通过。
 
 - `lint-staged` 钩子可能在 commit 时自动 `git add .`，提交前需确认没有带入 `run.md` / `testresult.md`。
 - 仓库已提交 `.gitattributes` 统一文本换行规则；Windows 下仍需用 `git diff --cached --check` 复核提交内容。
+- 普通 `src/` JavaScript / TypeScript 改动不主动构建 Debug APK；只有涉及 `android/`、`ios/`、`package.json` 原生库、`app.json` 等原生 / 构建配置时，提醒用户自行构建。
 - 临时来源展示是纯会话态 atom；歌单偏好持久化但不进入备份；空结果抑制是内存态。
 - 插件来源关系持久化但不进入备份 / 恢复。
 - R9 可用性测试明细和汇总是会话态；双失败写入的 `quarantined` 继续按 R3 持久化。
@@ -222,25 +223,24 @@ R9 Android 真机已由用户构建验收通过。
 
 已确认口径：
 
-1. 按音源 `platform` 保存 `A -> B` 替换关系；只改变取源插件，不改写歌曲身份。
-2. 原音源未安装、禁用、临时不可用、手动失效、归档、解析失败或不支持取源时，才使用 B。
-3. 原音源恢复可用后优先使用原音源；用户可清除或修改映射。
-4. 目标 B 必须已启用、健康可用且实现 `getMediaSource`；替换只解析一跳。
-5. 旧音源清单来自当前歌单、当前播放队列、播放历史、本地音乐和下载历史，展示歌曲引用数量。
-6. 播放、下载、批量换源和播放失败候选共用同一个原音源解析入口。
+1. 按音源 `platform` 保存 `A -> B` 替换关系；同名插件走一次性重匹配，不保存 `A -> A` 自映射。
+2. 选择 B 后通过搜索严格匹配并验证取源，命中后把歌曲元数据迁移为 B；未命中保留原值。
+3. 元数据迁移保留歌单时间戳、排序信息、本地路径和下载状态。
+4. 替换页展示所有引用音源，歌单菜单提供批量重新匹配入口。
+5. 播放 / 下载遇到映射时优先用目标插件搜索，不把旧 ID 直接交给目标插件取源。
+6. 来源组支持删除组内全部插件；订阅组只卸载插件，不删除订阅配置。
 7. 映射使用独立 MMKV，重启保留，不进入备份 / 恢复。
 
 实现记录：
 
-- `src/core/pluginManager/sourceReplacement.ts`：独立 `plugin.sourceReplacement` MMKV 映射表；收集当前歌单、当前播放队列、播放历史、本地音乐和下载历史中的旧音源引用。
-- `src/core/pluginManager/index.ts`：新增 `getMediaSourcePlugin`，原插件不可用时使用替换目标；目标不可用时不递归替换。
-- `src/core/trackPlayer/index.ts`、`downloader.ts`、`mediaSourceBatch.ts`、`mediaSourceResolver.ts`：统一接入取源插件解析。
-- `src/pages/setting/settingTypes/pluginSetting/views/pluginSourceReplacement.tsx`：插件维护页入口、旧音源列表、目标选择、修改与清除。
-- 未改写歌曲身份；替换关系不进入备份 / 恢复。
+- `src/core/sourceMigration.ts`：严格搜索、候选取源验证、元数据合并与多存储写回。
+- `src/core/pluginManager/sourceReplacement.ts`：映射持久化与全音源引用收集。
+- 播放失败候选优先尝试映射目标；播放 / 下载不会直接用旧 A 元数据调用 B。
+- `pluginSourceReplacement.tsx` 和歌单菜单提供全局 / 单歌单重新匹配入口。
+- 来源组详情增加整组删除插件。
 
 验证记录（2026-11-05）：
 
-- `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest 和 `git diff --check` 通过。
-- Metro Android production bundle 通过。
-- Android `assembleDebug` 构建成功。
-- 待用户 Android 真机验收；验收前不合并、不发布。
+- 修订后 `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest、`git diff --check` 和 Metro Android production bundle 通过。
+- 本轮仅 JavaScript / TypeScript 改动，未重新构建 Debug APK；等待用户使用 Metro / 现有 Debug 包验证。
+- 验收前不合并、不发布。
