@@ -25,6 +25,8 @@ import { useI18N } from "@/core/i18n";
 
 type DownloadFilter = "all" | "active" | "success" | "failed";
 
+const DOWNLOAD_ITEM_ESTIMATED_HEIGHT = rpx(132);
+
 type DownloadListItem =
     | {
         type: "active";
@@ -296,12 +298,16 @@ export default function DownloadingList() {
                     );
                 })}
             </View>
-            <FlashList
-                style={style.downloading}
-                data={listData}
-                keyExtractor={item => item.key}
-                renderItem={({ item }) => <DownloadingListItem item={item} />}
-            />
+            <View style={style.listWrapper}>
+                <FlashList
+                    data={listData}
+                    keyExtractor={item => item.key}
+                    estimatedItemSize={DOWNLOAD_ITEM_ESTIMATED_HEIGHT}
+                    renderItem={({ item }) => (
+                        <DownloadingListItem item={item} />
+                    )}
+                />
+            </View>
         </View>
     );
 }
@@ -325,8 +331,8 @@ const style = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
-    downloading: {
-        flexGrow: 0,
+    listWrapper: {
+        flex: 1,
     },
     descriptionWrapper: {
         gap: rpx(6),

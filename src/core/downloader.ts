@@ -18,9 +18,12 @@ import {
     markDownloadCompleted,
     markDownloadFailed,
     recordDownloadStarted,
+    replaceDownloadHistoryMusicItems,
 } from "./downloadHistory";
 import LocalMusicSheet from "./localMusicSheet";
 import { IPluginManager } from "@/types/core/pluginManager";
+import { getSourceReplacementTarget } from "./pluginManager/sourceReplacement";
+import { resolveReplacementMusicItem } from "./sourceMigration";
 
 
 export enum DownloadStatus {
@@ -141,7 +144,8 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
             musicItem,
             quality: task?.quality,
             filename: task?.filename,
-            pluginName: this.pluginManagerService.getByName(musicItem.platform)?.name,
+            pluginName: getSourceReplacementTarget(musicItem.platform) ??
+                this.pluginManagerService.getByName(musicItem.platform)?.name,
             createdAt,
         });
         this.downloadingCount++;
@@ -248,16 +252,36 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
         }
 
         const musicItem = nextTask.musicItem;
+        let downloadMusicItem = musicItem;
         // 更新下载状态
         this.markTaskAsStarted(musicItem);
 
         let url = musicItem.url;
         let headers = musicItem.headers;
 
-        const plugin = this.pluginManagerService.getByName(musicItem.platform);
+        const replacementPluginName = getSourceReplacementTarget(
+            musicItem.platform,
+        );
+        const plugin = this.pluginManagerService.getByName(
+            musicItem.platform,
+        );
 
         try {
-            if (plugin) {
+            if (replacementPluginName) {
+                const replacement = await resolveReplacementMusicItem({
+                    musicItem,
+                    plugin: this.pluginManagerService.getByName(
+                        replacementPluginName,
+                    ),
+                    config: this.configService,
+                });
+                if (!replacement) {
+                    throw new Error(DownloadFailReason.FailToFetchSource);
+                }
+                downloadMusicItem = replacement.musicItem;
+                url = replacement.source.url;
+                headers = replacement.source.headers;
+            } else if (plugin) {
                 const qualityOrder = getQualityOrder(
                     nextTask.quality ??
                     this.configService.getConfig("basic.defaultDownloadQuality") ??
@@ -320,9 +344,13 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
             this.getCacheDownloadPath(`${nanoid()}.${extension}`),
         );
 
+        const downloadFilename = downloadMusicItem === musicItem
+            ? nextTask.filename
+            : Downloader.generateFilename(downloadMusicItem);
+
         // 真实下载地址
         const targetDownloadPath = addFileScheme(
-            this.getDownloadPath(`${nextTask.filename}.${extension}`),
+            this.getDownloadPath(`${downloadFilename}.${extension}`),
         );
 
         // 检测下载位置是否存在
@@ -367,13 +395,13 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
             await copyFile(cacheDownloadPath, targetDownloadPath);
 
             LocalMusicSheet.addMusic({
-                ...musicItem,
+                ...downloadMusicItem,
                 [internalSerializeKey]: {
                     localPath: targetDownloadPath,
                 },
             });
 
-            patchMediaExtra(musicItem, {
+            patchMediaExtra(downloadMusicItem, {
                 downloaded: true,
                 localPath: targetDownloadPath,
             });
@@ -382,6 +410,12 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
                 filename: path.basename(targetDownloadPath),
                 localPath: targetDownloadPath,
             });
+            if (downloadMusicItem !== musicItem) {
+                replaceDownloadHistoryMusicItems(new Map([[
+                    getMediaUniqueKey(musicItem),
+                    downloadMusicItem,
+                ]]));
+            }
         } catch (e: any) {
             this.markTaskAsError(musicItem, DownloadFailReason.Unknown, e);
         }

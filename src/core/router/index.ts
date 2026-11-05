@@ -1,10 +1,5 @@
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useCallback } from "react";
-import { LogBox } from "react-native";
-
-LogBox.ignoreLogs([
-    "Non-serializable values were found in the navigation state",
-]);
 
 /** 路由key */
 export const ROUTE_PATH = {
@@ -86,13 +81,6 @@ interface RouterParams extends RouterParamsBase {
         multi?: boolean; // 是否多选
         actionText?: string; // 底部行动点的文本
         actionIcon?: string; // 底部行动点的图标
-        onAction?: (
-            selectedFiles: {
-                path: string;
-                type: "file" | "folder";
-            }[],
-        ) => Promise<boolean>; // true会自动关闭，false会停在当前页面
-        matchExtension?: (path: string) => boolean;
     };
     "top-list-detail": {
         pluginHash: string;

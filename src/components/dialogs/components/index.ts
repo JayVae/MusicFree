@@ -9,6 +9,7 @@ import SubscribePluginDialog from "./subscribePluginDialog";
 import SubscriptionInstallDialog from "./subscriptionInstallDialog";
 import SetScheduleCloseTimeDialog from "./setScheduleCloseTimeDialog";
 import BatchSourceDialog from "./batchSourceDialog";
+import SourceMigrationDialog from "./sourceMigrationDialog";
 
 const dialogs = {
     SimpleDialog,
@@ -22,6 +23,7 @@ const dialogs = {
     MarkdownDialog,
     SetScheduleCloseTimeDialog,
     BatchSourceDialog,
+    SourceMigrationDialog,
 };
 
 export default dialogs;

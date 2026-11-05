@@ -1,7 +1,11 @@
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse, safeStringify } from "@/utils/jsonUtil";
 import { getQualityOrder } from "@/utils/qualities";
-import { isPluginAvailableForService } from "./pluginManager/health";
+import {
+    getPluginHealthStatus,
+    isPluginAvailableForService,
+    PluginHealthStatus,
+} from "./pluginManager/health";
 import type { IPluginManager } from "@/types/core/pluginManager";
 import type { IAppConfig } from "@/types/core/config";
 import type { Plugin } from "./pluginManager/plugin";
@@ -11,6 +15,7 @@ import {
     recordEmptySearchResult,
     recordNonEmptySearchResult,
 } from "./playbackSource";
+import { getSourceReplacementTarget } from "./pluginManager/sourceReplacement";
 
 /** R7：换源只受 15 秒总预算、候选耗尽和切歌控制。 */
 export const PLAY_SOURCE_FALLBACK_TIMEOUT_MS = 15_000;
@@ -117,7 +122,7 @@ export function normalizeMediaMatchText(value?: string | number | null) {
         .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
-function normalizeDurationSeconds(value?: string | number | null) {
+export function normalizeDurationSeconds(value?: string | number | null) {
     const duration = Number(value);
     if (!Number.isFinite(duration) || duration <= 0) {
         return 0;
@@ -137,6 +142,35 @@ export function isDurationMatch(
         return true;
     }
     return Math.abs(source - target) <= PLAY_SOURCE_FALLBACK_DURATION_TOLERANCE_SECONDS;
+}
+
+/** 严格歌曲匹配：标题、艺人一致，duration 在阈值内。 */
+export function isStrictMusicMatch(
+    candidate: IMusic.IMusicItemBase | null | undefined,
+    target: IMusic.IMusicItemBase | null | undefined,
+    strict = true,
+) {
+    if (!candidate || !target) {
+        return false;
+    }
+    if (!isDurationMatch(candidate.duration, target.duration)) {
+        return false;
+    }
+    if (!strict) {
+        return true;
+    }
+
+    const candidateTitle = normalizeMediaMatchText(candidate.title);
+    const targetTitles = [
+        normalizeMediaMatchText(target.title),
+        normalizeMediaMatchText(target.alias),
+    ].filter(Boolean);
+    const candidateArtist = normalizeMediaMatchText(candidate.artist);
+    const targetArtist = normalizeMediaMatchText(target.artist);
+
+    return targetTitles.includes(candidateTitle) &&
+        candidateArtist.length > 0 &&
+        candidateArtist === targetArtist;
 }
 
 /**
@@ -207,9 +241,14 @@ export class MediaSourceFallbackResolver {
         }
 
         const cached = getMediaSourceFallbackCache(this.musicItem);
+        const replacementPluginName = getSourceReplacementTarget(
+            this.musicItem.platform,
+        );
         if (
             cached?.source.url &&
             !this.failedSourceUrls.has(cached.source.url) &&
+            (!replacementPluginName ||
+                cached.resolvedByPluginName === replacementPluginName) &&
             (!this.resolverOptions.preferredOnly || cached.resolvedByPluginName === this.resolverOptions.preferredPluginName)
         ) {
             this.resolverOptions.onResolved?.(cached);
@@ -343,6 +382,12 @@ export class MediaSourceFallbackResolver {
         const originalPlugin = this.pluginManagerService.getByName(
             this.musicItem.platform,
         );
+        const replacementPluginName = getSourceReplacementTarget(
+            this.musicItem.platform,
+        );
+        const replacementPlugin = replacementPluginName
+            ? this.pluginManagerService.getByName(replacementPluginName)
+            : null;
         const alternativePlugin = originalPlugin
             ? this.pluginManagerService.getAlternativePlugin(originalPlugin)
             : null;
@@ -353,6 +398,7 @@ export class MediaSourceFallbackResolver {
         const orderedPlugins = this.resolverOptions.preferredOnly
             ? [preferredPlugin]
             : [
+                replacementPlugin,
                 preferredPlugin,
                 alternativePlugin,
                 ...this.pluginManagerService.getSortedSearchablePlugins("music"),
@@ -363,7 +409,11 @@ export class MediaSourceFallbackResolver {
             if (!plugin || uniquePlugins.has(plugin.name)) {
                 continue;
             }
-            if (plugin.name === this.musicItem.platform) {
+            const isExplicitReplacement = plugin.name === replacementPluginName;
+            if (
+                plugin.name === this.musicItem.platform &&
+                !isExplicitReplacement
+            ) {
                 continue;
             }
             const isPreferredPlugin = plugin.name === this.resolverOptions.preferredPluginName;
@@ -378,13 +428,23 @@ export class MediaSourceFallbackResolver {
             if (!this.pluginManagerService.isPluginEnabled(plugin)) {
                 continue;
             }
-            if (!isPluginAvailableForService(plugin.name)) {
+            if (
+                !isPluginAvailableForService(plugin.name) &&
+                !(
+                    isExplicitReplacement &&
+                    getPluginHealthStatus(plugin.name) ===
+                        PluginHealthStatus.Quarantined
+                )
+            ) {
                 continue;
             }
             if (!plugin.supportedMethods.has("search")) {
                 continue;
             }
-            if (isPluginSuppressedByEmptySearch(plugin.name)) {
+            if (
+                !isExplicitReplacement &&
+                isPluginSuppressedByEmptySearch(plugin.name)
+            ) {
                 continue;
             }
             uniquePlugins.set(plugin.name, plugin);
@@ -406,26 +466,12 @@ export class MediaSourceFallbackResolver {
         if (!item || item.platform === this.musicItem.platform) {
             return false;
         }
-        if (!isDurationMatch(item.duration, this.musicItem.duration)) {
-            return false;
-        }
-
         // 总开关默认严格；关闭后仍不做编辑距离兜底，仅放宽文本要求。
-        if (!(this.configService.getConfig("basic.playSourceFallbackStrictMatch") ?? true)) {
-            return true;
-        }
-
-        const candidateTitle = normalizeMediaMatchText(item.title);
-        const targetTitles = [
-            normalizeMediaMatchText(this.musicItem.title),
-            normalizeMediaMatchText(this.musicItem.alias),
-        ].filter(Boolean);
-        const candidateArtist = normalizeMediaMatchText(item.artist);
-        const targetArtist = normalizeMediaMatchText(this.musicItem.artist);
-
-        return targetTitles.includes(candidateTitle) &&
-            candidateArtist.length > 0 &&
-            candidateArtist === targetArtist;
+        return isStrictMusicMatch(
+            item,
+            this.musicItem,
+            this.configService.getConfig("basic.playSourceFallbackStrictMatch") ?? true,
+        );
     }
 
     private async getSourceFromPlugin(

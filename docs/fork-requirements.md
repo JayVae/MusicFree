@@ -1826,3 +1826,121 @@ src/pages/setting/settingTypes/pluginSetting/*
 1. 用户已在 Android 真机验证添加该订阅 URL 不再卡死，插件列表、后台安装、进度与取消流程正常。
 2. `tsc`、ESLint、Jest、`git diff --check`、Android `assembleDebug` 与 Metro production bundle 均通过。
 3. 已合并到 `master`，版本提升为 `0.6.4`，打 tag `v0.6.4` 并由 GitHub Actions 发布 Release。
+
+---
+
+## 23. 第六轮新增需求 R11：旧音源替换（2026-11-05）
+
+### 背景
+
+1. 歌单、播放历史、本地音乐和下载历史会长期保存歌曲的 `platform` / `id`。
+2. 原音源插件被删除、禁用、隔离或标记失效后，旧歌曲仍指向该 `platform`；播放和下载会先遇到原插件不可用，再由现有换源逻辑逐首搜索 / 重试。
+3. 已有“音源重定向”保存在原插件配置下，原插件不存在时无法继续使用，不能满足跨插件生命周期的旧数据兼容。
+
+### 已确认口径
+
+1. 在插件管理中新增“旧音源替换”页面，按音源 `platform` 配置替换目标，例如 `A -> B`。
+2. 页面从当前歌单、当前播放队列、播放历史、本地音乐和下载历史收集所有音源引用，包括仍可用和同名插件；没有现存引用但已有映射的记录仍可管理。
+3. 选择目标 B 后，使用 B 搜索旧歌曲；只有标题 / 艺人严格匹配、duration 在阈值内且候选可取源时才迁移元数据。
+4. 元数据迁移会替换歌曲的 `platform` / `id` 和插件字段，并保留歌单时间戳、排序信息、本地文件路径和已下载状态。
+5. 未命中歌曲保留原值；映射保留并用于后续播放 / 下载搜索时优先尝试目标 B。
+6. 同名插件可选择自身执行一次性重匹配，以处理旧 ID 失效；不持久化 `A -> A` 自映射，避免迁移成功后的正常歌曲继续走搜索。
+7. 播放和下载遇到旧映射时不应直接把旧 A 元数据交给 B 取源，应先使用 B 搜索候选。
+8. 歌单菜单提供显式批量重匹配入口；用户选择目标插件后，仅替换严格匹配且验证可用的歌曲。
+9. 替换关系是设备级插件配置，使用独立 MMKV namespace，不进入备份 / 恢复。
+10. 不新增运行时依赖。
+
+### 非目标
+
+1. 不把未验证匹配的歌曲批量改成 `B@id`。
+2. 不保证所有旧歌曲都能在 B 命中；未命中不删除、不改写。
+3. 不替代现有播放失败换源、歌单来源偏好或插件健康状态机。
+4. 不自动删除长期无引用的映射。
+5. 不将替换记录纳入备份 / 恢复。
+
+### 关键实现
+
+```text
+src/core/pluginManager/sourceReplacement.ts   # 映射持久化、旧音源清单
+src/core/sourceMigration.ts                    # 严格搜索、元数据迁移与批量写回
+src/core/pluginManager/index.ts               # 插件查找与来源组删除
+src/core/trackPlayer/index.ts                 # 播放入口接入
+src/core/downloader.ts                        # 下载入口接入
+src/core/mediaSourceBatch.ts                  # 批量换源筛选 / 原插件接入
+src/core/mediaSourceResolver.ts               # 播放失败候选接入
+src/pages/setting/settingTypes/pluginSetting/
+  views/pluginSourceReplacement.tsx            # 配置页面
+```
+
+### 验收标准
+
+1. 删除音源 A 或将其标记失效后，旧歌曲可在“旧音源替换”页选择 B 并完成搜索迁移。
+2. 同名插件替换导致旧 ID 失效时，页面仍展示该音源，并允许选择同名插件重新匹配。
+3. 只有标题 / 艺人严格匹配、duration 阈值通过且候选取源成功时才替换歌曲元数据。
+4. 替换后歌单排序、收藏时间、本地路径和下载状态不被破坏。
+5. 未命中歌曲保留原值；映射继续用于后续播放 / 下载优先搜索。
+6. 歌单菜单可对整张歌单执行重新搜索并替换，且只改写命中项。
+7. 来源组可删除组内全部插件，订阅配置不受影响。
+8. 替换关系重启后保留，但不进入备份；不新增运行时依赖。
+
+### 验收记录
+
+#### 实现记录（2026-11-05）
+
+1. 新增 `src/core/sourceMigration.ts`，负责严格搜索、候选取源验证、元数据合并和多存储写回。
+2. 替换目标优先进入播放失败搜索候选；播放主流程遇到映射时不再直接用旧 ID 调用目标插件。
+3. 替换页展示所有引用音源，支持同名插件选择与全局迁移；歌单菜单提供单歌单批量重匹配。
+4. 来源组详情新增整组删除插件。
+5. 映射使用独立 MMKV，未进入备份 / 恢复。
+6. 当前歌单、当前播放队列、播放历史、本地音乐和下载历史会参与引用统计与迁移。
+
+#### 验证记录（2026-11-05）
+
+1. 真机反馈后的版本已通过 `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest 和 `git diff --check`。
+2. Metro Android production bundle 通过；本轮无原生 / 构建配置改动，未重新构建 Debug APK。
+3. 用户已使用现有 Debug 包 / Metro 完成 Android 真机验收，旧音源替换、同名源重匹配、歌单批量替换和来源组整组删除均通过。
+
+---
+
+## 24. R11 运行时警告治理（2026-11-05）
+
+### 背景
+
+R11 真机验证过程中观察到以下警告：
+
+1. 调整插件顺序时，Reanimated 提示 worklet 捕获的 React ref 的 `current` 后续被修改。
+2. 文件选择器路由参数包含 `onAction` 函数，触发 React Navigation 非序列化参数警告。
+3. 下载列表给 FlashList 直接传入 `style`，且未提供 `estimatedItemSize`。
+
+### 处理口径
+
+1. `SortableFlatList` 的滚动标记改用 Reanimated shared value，由 JS 线程和 worklet 统一通过 `.value` 读写，不再把 React ref 捕获进 worklet。
+2. 文件选择器新增模块级 action registry。调用方先注册回调再导航，`file-selector` navigation params 只保留可序列化配置；FileSelector 卸载时清理未消费回调，回调返回 `false` 时保留以便重试。
+3. 不通过扩大 `LogBox.ignoreLogs` 隐藏 navigation 警告，移除原先对非序列化参数警告的忽略配置。
+4. 下载列表用外层 `View` 承载 `flex` 布局，移除 FlashList 上的 `style`，并设置近似下载项高度的 `estimatedItemSize`。
+5. 本轮仅修改 JavaScript / TypeScript，不新增运行时依赖，不主动构建 Debug APK。
+
+### 验收标准
+
+1. 插件排序拖拽时可正常滚动，控制台不再出现 Reanimated `current` 警告。
+2. 本地音乐扫描、下载目录选择、本地备份的文件选择流程均可完成，操作成功会返回，失败会停留在选择页，且不再出现 navigation 非序列化参数警告。
+3. 下载列表正常滚动，不再出现 FlashList `style` 与 `estimatedItemSize` 警告。
+4. `tsc`、改动文件 ESLint、Jest、`git diff --check` 和 Metro production bundle 通过。
+
+### 验证记录（2026-11-05）
+
+1. `tsc --noEmit` 通过。
+2. 改动文件 ESLint 通过，0 errors / 7 个既有 warning，本轮新增代码无 warning。
+3. Jest `--passWithNoTests --runInBand` 通过。
+4. `git diff --check` 通过。
+5. Metro Android production bundle 通过。
+6. 用户已完成 Android 真机复验，三个运行时 warning 及对应交互均通过。
+
+---
+
+## 25. 持续验证策略（2026-11-05）
+
+1. Metro 生产打包默认不执行。
+2. 仅在改动入口 / 打包配置 / 依赖 / 公共模块、用户要求提测、发布前验证或怀疑生产模式问题时执行。
+3. 每次任务报告必须说明 Metro 生产打包是否执行、执行原因和结果。
+4. v0.6.5 收尾没有再次执行 Metro：最后一批功能代码完成后已完成生产打包，之后只修改文档和发布元数据。

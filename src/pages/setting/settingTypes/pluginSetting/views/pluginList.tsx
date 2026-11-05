@@ -647,6 +647,13 @@ export default function PluginList() {
                                 onPress={onUpdateSubscriptionClick}
                             />
                             <IconAction
+                                icon="arrows-left-right"
+                                title={t("pluginSetting.sourceReplacement.manage")}
+                                onPress={() => navigate(
+                                    "/pluginsetting/source-replacement",
+                                )}
+                            />
+                            <IconAction
                                 icon="trash-outline"
                                 title={t("pluginSetting.menu.uninstallAll")}
                                 onPress={() => {

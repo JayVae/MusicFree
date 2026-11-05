@@ -89,7 +89,7 @@ export default function SortableFlatList<T extends any = any>(
     const offsetRef = useRef<number>(0);
 
     //#region 滚动
-    const scrollingRef = useRef(false);
+    const scrolling = useSharedValue(false);
 
     // 列表整体的高度
     const listContentHeight = useMemo(
@@ -100,18 +100,18 @@ export default function SortableFlatList<T extends any = any>(
     function scrollToTarget(forceScroll = false) {
         // 未选中
         if (activeRef.current === -1) {
-            scrollingRef.current = false;
+            scrolling.value = false;
             return;
         }
 
         // 滚动中就不滚了 /
-        if (scrollingRef.current && !forceScroll) {
-            scrollingRef.current = true;
+        if (scrolling.value && !forceScroll) {
+            scrolling.value = true;
             return;
         }
         // 方向是0
         if (direction.value === 0) {
-            scrollingRef.current = false;
+            scrolling.value = false;
             return;
         }
 
@@ -128,10 +128,10 @@ export default function SortableFlatList<T extends any = any>(
                 listContentHeight - (layoutRef.current?.height ?? 0) - 2 &&
                 nextTarget > contentOffsetYRef.current)
         ) {
-            scrollingRef.current = false;
+            scrolling.value = false;
             return;
         }
-        scrollingRef.current = true;
+        scrolling.value = true;
         // 超出区域
         targetOffsetYRef.current = Math.min(
             Math.max(0, nextTarget),
@@ -145,7 +145,7 @@ export default function SortableFlatList<T extends any = any>(
 
     useDerivedValue(() => {
         // 正在滚动
-        if (scrollingRef.current) {
+        if (scrolling.value) {
             return;
         } else if (direction.value !== 0) {
             // 开始滚动
@@ -261,7 +261,7 @@ export default function SortableFlatList<T extends any = any>(
                             // _setData(nData);
                         }
                     }
-                    scrollingRef.current = false;
+                    scrolling.value = false;
                     activeRef.current = -1;
                     setScrollEnabled(true);
                     setActiveItem(null);
@@ -274,7 +274,7 @@ export default function SortableFlatList<T extends any = any>(
                 onTouchCancel={() => {
                     // todo: 滑动很快的时候会触发取消，native的flatlist就这样
                     activeRef.current = -1;
-                    scrollingRef.current = false;
+                    scrolling.value = false;
                     setScrollEnabled(true);
                     setActiveItem(null);
                     fakeItemRef.current!.setNativeProps({

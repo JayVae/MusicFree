@@ -108,15 +108,39 @@ export default function PluginOriginDetail() {
 
     const confirmGroupState = (
         nextGroup: IPluginOriginGroup,
-        action: "enable" | "disable" | "archive" | "restore",
+        action: "enable" | "disable" | "archive" | "restore" | "delete",
     ) => {
         showDialog("SimpleDialog", {
             title: t(`pluginSetting.origin.actions.${action}` as any),
-            content: t("pluginSetting.origin.actionContent", {
-                count: nextGroup.pluginCount,
-            }),
+            content: action === "delete"
+                ? t("pluginSetting.origin.deleteContent", {
+                    count: nextGroup.pluginCount,
+                })
+                : t("pluginSetting.origin.actionContent", {
+                    count: nextGroup.pluginCount,
+                }),
             okText: t("common.confirm"),
             onOk: () => {
+                if (action === "delete") {
+                    showDialog("LoadingDialog", {
+                        title: t("pluginSetting.origin.actions.delete"),
+                        loadingText: t("pluginSetting.origin.deleting"),
+                        async task() {
+                            for (const plugin of nextGroup.plugins) {
+                                await PluginManager.uninstallPlugin(plugin.hash);
+                            }
+                        },
+                        onResolve(_result, hideLoadingDialog) {
+                            hideLoadingDialog();
+                            Toast.success(t("pluginSetting.origin.deleteSuccess"));
+                        },
+                        onReject(_reason, hideLoadingDialog) {
+                            hideLoadingDialog();
+                            Toast.warn(t("pluginSetting.origin.deleteFailed"));
+                        },
+                    });
+                    return false;
+                }
                 applyGroupState(nextGroup, action);
                 Toast.success(t("toast.settingSuccess"));
             },
@@ -147,11 +171,14 @@ export default function PluginOriginDetail() {
         plugin => healthRecords[plugin.name]?.status ===
             PluginHealthStatus.Archived,
     ).length;
-    const actions: Array<"enable" | "disable" | "archive" | "restore"> = [
+    const actions: Array<
+        "enable" | "disable" | "archive" | "restore" | "delete"
+    > = [
         "enable",
         "disable",
         "archive",
         "restore",
+        "delete",
     ];
 
     return (

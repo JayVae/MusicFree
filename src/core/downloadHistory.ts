@@ -1,5 +1,6 @@
 import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse, safeStringify } from "@/utils/jsonUtil";
+import { getMediaUniqueKey } from "@/utils/mediaUtils";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 
 export type DownloadRecordStatus = "pending" | "success" | "failed";
@@ -41,7 +42,7 @@ function saveDownloadHistory(records: IDownloadRecord[]) {
     getDefaultStore().set(downloadHistoryAtom, nextRecords);
 }
 
-function getDownloadHistory() {
+export function getDownloadHistory() {
     return getDefaultStore().get(downloadHistoryAtom);
 }
 
@@ -157,6 +158,33 @@ export function removeDownloadRecord(key: string) {
 
 export function clearDownloadHistory() {
     saveDownloadHistory([]);
+}
+
+export function replaceDownloadHistoryMusicItems(
+    replacements: Map<string, IMusic.IMusicItem>,
+) {
+    if (!replacements.size) {
+        return 0;
+    }
+    let changedCount = 0;
+    const nextRecords = getDownloadHistory().map(record => {
+        const replacement = replacements.get(
+            getMediaUniqueKey(record.musicItem),
+        );
+        if (!replacement) {
+            return record;
+        }
+        changedCount++;
+        return {
+            ...record,
+            mediaKey: getMediaUniqueKey(replacement),
+            musicItem: replacement,
+        };
+    });
+    if (changedCount) {
+        saveDownloadHistory(nextRecords);
+    }
+    return changedCount;
 }
 
 export function useDownloadHistory(): IDownloadRecord[] {

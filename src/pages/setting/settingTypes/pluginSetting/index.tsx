@@ -6,6 +6,7 @@ import PluginSort from "./views/pluginSort";
 import PluginSubscribe from "./views/pluginSubscribe";
 import PluginSubscriptionDetail from "./views/pluginSubscriptionDetail";
 import PluginOriginDetail from "./views/pluginOriginDetail";
+import PluginSourceReplacement from "./views/pluginSourceReplacement";
 
 const Stack = createNativeStackNavigator<any>();
 
@@ -29,6 +30,10 @@ const routes = [
     {
         path: "/pluginsetting/origin/detail",
         component: PluginOriginDetail,
+    },
+    {
+        path: "/pluginsetting/source-replacement",
+        component: PluginSourceReplacement,
     },
 ];
 

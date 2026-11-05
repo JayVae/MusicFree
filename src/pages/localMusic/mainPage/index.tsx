@@ -1,4 +1,5 @@
 import React from "react";
+import { setFileSelectorAction } from "@/core/fileSelectorAction";
 import LocalMusicSheet from "@/core/localMusicSheet";
 import { ROUTE_PATH, useNavigate } from "@/core/router";
 import LocalMusicList from "./localMusicList";
@@ -32,33 +33,32 @@ export default function MainPage() {
                         icon: "magnifying-glass",
                         title: t("localMusic.scanLocalMusic"),
                         async onPress() {
+                            setFileSelectorAction(async selectedFiles => {
+                                return new Promise(resolve => {
+                                    showDialog("LoadingDialog", {
+                                        title: t("localMusic.scanLocalMusic"),
+                                        promise: LocalMusicSheet.importLocal(
+                                            selectedFiles.map(_ => _.path),
+                                        ),
+                                        onResolve(data, hideDialog) {
+                                            Toast.success(
+                                                t("toast.importSuccess"),
+                                            );
+                                            hideDialog();
+                                            resolve(true);
+                                        },
+                                        onCancel(hideDialog) {
+                                            LocalMusicSheet.cancelImportLocal();
+                                            hideDialog();
+                                            resolve(false);
+                                        },
+                                    });
+                                });
+                            });
                             navigate(ROUTE_PATH.FILE_SELECTOR, {
                                 fileType: "folder",
                                 multi: true,
                                 actionText: t("localMusic.beginScan"),
-                                async onAction(selectedFiles) {
-                                    return new Promise(resolve => {
-                                        showDialog("LoadingDialog", {
-                                            title: t("localMusic.scanLocalMusic"),
-                                            promise:
-                                                LocalMusicSheet.importLocal(
-                                                    selectedFiles.map(
-                                                        _ => _.path,
-                                                    ),
-                                                ),
-                                            onResolve(data, hideDialog) {
-                                                Toast.success(t("toast.importSuccess"));
-                                                hideDialog();
-                                                resolve(true);
-                                            },
-                                            onCancel(hideDialog) {
-                                                LocalMusicSheet.cancelImportLocal();
-                                                hideDialog();
-                                                resolve(false);
-                                            },
-                                        });
-                                    });
-                                },
                             });
                         },
                     },
