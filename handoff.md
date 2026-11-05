@@ -244,3 +244,11 @@ R9 Android 真机已由用户构建验收通过。
 - 修订后 `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest、`git diff --check` 和 Metro Android production bundle 通过。
 - 本轮仅 JavaScript / TypeScript 改动，未重新构建 Debug APK；等待用户使用 Metro / 现有 Debug 包验证。
 - 验收前不合并、不发布。
+
+运行时警告处理（2026-11-05）：
+
+- 排序列表滚动状态改用 Reanimated shared value，消除 worklet 修改 React ref `current` 的警告。
+- 文件选择器 callback 迁移到模块级 action registry，navigation 参数保持可序列化；同时移除对应的 `LogBox` 忽略项。
+- 下载列表增加外层布局容器和 `estimatedItemSize`，不再给 FlashList 直接传 `style`。
+- 本轮仍仅涉及 JavaScript / TypeScript，不主动构建 Debug APK；等待用户在现有 Debug 包 / Metro 中复验。
+- `tsc --noEmit`、改动文件 ESLint（0 errors / 7 个既有 warning）、Jest、`git diff --check` 和 Metro Android production bundle 通过。

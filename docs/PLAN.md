@@ -431,6 +431,14 @@ git diff --check
 - 本轮 `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest、`git diff --check` 和 Metro Android production bundle 均通过。
 - 本轮仅 JavaScript / TypeScript 改动，未重新构建 Debug APK；等待用户使用 Metro / 现有 Debug 包验证。
 
+**运行时警告治理（2026-11-05）**：
+
+- 排序列表的滚动标记由 React ref 改为 Reanimated `useSharedValue`，避免 worklet 捕获并读写 React ref。
+- 文件选择器回调改存模块级 action registry；navigation 只保留可序列化参数，并移除对应 `LogBox` 忽略项。
+- 下载列表由外层 `View` 承载布局，FlashList 不再直接接收 `style`，并补充 `estimatedItemSize`。
+- 本轮仍仅修改 JavaScript / TypeScript，不主动构建 Debug APK。
+- `tsc --noEmit`、Jest、`git diff --check` 和 Metro Android production bundle 通过；改动文件 ESLint 为 0 errors / 7 个既有 warning。
+
 ---
 
 ## 变更日志

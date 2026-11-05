@@ -1899,3 +1899,39 @@ src/pages/setting/settingTypes/pluginSetting/
 1. 真机反馈后的版本已通过 `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest 和 `git diff --check`。
 2. Metro Android production bundle 通过；本轮无原生 / 构建配置改动，未重新构建 Debug APK。
 3. 待用户使用 Metro / 现有 Debug 包进行 Android 真机验收。
+
+---
+
+## 24. R11 运行时警告治理（2026-11-05）
+
+### 背景
+
+R11 真机验证过程中观察到以下警告：
+
+1. 调整插件顺序时，Reanimated 提示 worklet 捕获的 React ref 的 `current` 后续被修改。
+2. 文件选择器路由参数包含 `onAction` 函数，触发 React Navigation 非序列化参数警告。
+3. 下载列表给 FlashList 直接传入 `style`，且未提供 `estimatedItemSize`。
+
+### 处理口径
+
+1. `SortableFlatList` 的滚动标记改用 Reanimated shared value，由 JS 线程和 worklet 统一通过 `.value` 读写，不再把 React ref 捕获进 worklet。
+2. 文件选择器新增模块级 action registry。调用方先注册回调再导航，`file-selector` navigation params 只保留可序列化配置；FileSelector 卸载时清理未消费回调，回调返回 `false` 时保留以便重试。
+3. 不通过扩大 `LogBox.ignoreLogs` 隐藏 navigation 警告，移除原先对非序列化参数警告的忽略配置。
+4. 下载列表用外层 `View` 承载 `flex` 布局，移除 FlashList 上的 `style`，并设置近似下载项高度的 `estimatedItemSize`。
+5. 本轮仅修改 JavaScript / TypeScript，不新增运行时依赖，不主动构建 Debug APK。
+
+### 验收标准
+
+1. 插件排序拖拽时可正常滚动，控制台不再出现 Reanimated `current` 警告。
+2. 本地音乐扫描、下载目录选择、本地备份的文件选择流程均可完成，操作成功会返回，失败会停留在选择页，且不再出现 navigation 非序列化参数警告。
+3. 下载列表正常滚动，不再出现 FlashList `style` 与 `estimatedItemSize` 警告。
+4. `tsc`、改动文件 ESLint、Jest、`git diff --check` 和 Metro production bundle 通过。
+
+### 验证记录（2026-11-05）
+
+1. `tsc --noEmit` 通过。
+2. 改动文件 ESLint 通过，0 errors / 7 个既有 warning，本轮新增代码无 warning。
+3. Jest `--passWithNoTests --runInBand` 通过。
+4. `git diff --check` 通过。
+5. Metro Android production bundle 通过。
+6. 待用户使用现有 Debug 包 / Metro 复验三个运行时 warning 及对应交互。
