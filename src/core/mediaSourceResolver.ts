@@ -340,7 +340,7 @@ export class MediaSourceFallbackResolver {
      * 候选顺序：原插件配置的替代插件优先，其余可用插件按现有全局排序。
      */
     private getOrderedCandidatePlugins(): Plugin[] {
-        const originalPlugin = this.pluginManagerService.getByName(
+        const originalPlugin = this.pluginManagerService.getMediaSourcePlugin(
             this.musicItem.platform,
         );
         const alternativePlugin = originalPlugin

@@ -61,6 +61,7 @@ import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { safeParse } from "@/utils/jsonUtil";
 import { IInjectable } from "@/types/infra";
 import { IAppConfig } from "@/types/core/config";
+import { getSourceReplacementTarget } from "./sourceReplacement";
 
 const pluginsAtom = atom<Plugin[]>([]);
 const pluginCacheStore = getOrCreateMMKV("plugin.cache");
@@ -957,6 +958,39 @@ class PluginManager implements IPluginManager, IInjectable {
         return name === localPluginPlatform
             ? localFilePlugin
             : this.getPlugins().find(_ => _.name === name);
+    }
+
+    /**
+     * 解析用于获取音源的插件。
+     * 原插件不可用时，才使用用户为旧 platform 配置的替换插件。
+     */
+    getMediaSourcePlugin(platform: string) {
+        const originalPlugin = this.getByName(platform);
+        if (this.isPluginUsableForMediaSource(originalPlugin)) {
+            return originalPlugin;
+        }
+
+        const replacementPluginName = getSourceReplacementTarget(platform);
+        if (!replacementPluginName || replacementPluginName === platform) {
+            return originalPlugin;
+        }
+
+        const replacementPlugin = this.getByName(replacementPluginName);
+        return this.isPluginUsableForMediaSource(replacementPlugin)
+            ? replacementPlugin
+            : originalPlugin;
+    }
+
+    private isPluginUsableForMediaSource(plugin?: Plugin) {
+        if (!plugin || plugin.state === PluginState.Error) {
+            return false;
+        }
+        if (plugin.name === localPluginPlatform) {
+            return true;
+        }
+        return pluginMeta.isPluginEnabled(plugin.name) &&
+            isPluginAvailableForService(plugin.name) &&
+            plugin.supportedMethods.has("getMediaSource");
     }
 
     /**

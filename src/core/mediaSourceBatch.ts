@@ -50,7 +50,7 @@ async function hasOriginalValidSource(
         return true;
     }
 
-    const plugin = pluginManager.getByName(musicItem.platform);
+    const plugin = pluginManager.getMediaSourcePlugin(musicItem.platform);
     if (!plugin?.methods?.getMediaSource || !isPluginAvailableForService(plugin.name)) {
         return false;
     }

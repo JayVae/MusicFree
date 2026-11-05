@@ -256,6 +256,26 @@ export interface ILanguageData {
     "pluginSetting.maintenance.expand": string; // 展开维护操作
     "pluginSetting.maintenance.collapse": string; // 收起维护操作
     "pluginSetting.maintenance.toggleTip": string; // 维护操作折叠提示
+    "pluginSetting.sourceReplacement.manage": string; // 旧音源替换入口
+    "pluginSetting.sourceReplacement.title": string; // 旧音源替换标题
+    "pluginSetting.sourceReplacement.intro": string; // 旧音源替换说明
+    "pluginSetting.sourceReplacement.empty": string; // 无可替换旧音源
+    "pluginSetting.sourceReplacement.referenceCount": string; // 引用歌曲数量
+    "pluginSetting.sourceReplacement.target": string; // 替换目标
+    "pluginSetting.sourceReplacement.notConfigured": string; // 尚未配置替换
+    "pluginSetting.sourceReplacement.targetUnavailable": string; // 替换目标不可用
+    "pluginSetting.sourceReplacement.originalAvailable": string; // 原音源可用提示
+    "pluginSetting.sourceReplacement.selectTitle": string; // 选择替换音源标题
+    "pluginSetting.sourceReplacement.selectTip": string; // 选择替换音源提示
+    "pluginSetting.sourceReplacement.clear": string; // 清除替换
+    "pluginSetting.sourceReplacement.noTargets": string; // 无可用替换目标
+    "pluginSetting.sourceReplacement.setSuccess": string; // 保存替换成功
+    "pluginSetting.sourceReplacement.cleared": string; // 清除替换成功
+    "pluginSetting.sourceReplacement.status.missing": string; // 原插件已删除
+    "pluginSetting.sourceReplacement.status.disabled": string; // 原插件已禁用
+    "pluginSetting.sourceReplacement.status.load-error": string; // 原插件加载失败
+    "pluginSetting.sourceReplacement.status.unsupported": string; // 原插件不支持取源
+    "pluginSetting.sourceReplacement.status.available": string; // 原插件可用
     "pluginSetting.stat.installed": string; // 已安装
     "pluginSetting.stat.subscriptions": string; // 订阅
     "pluginSetting.stat.archived": string; // 已归档

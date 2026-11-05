@@ -504,7 +504,9 @@ class TrackPlayer extends EventEmitter<{
             let track: IMusic.IMusicItem;
 
             // 5.1 通过插件获取音源
-            const plugin = this.pluginManagerService.getByName(musicItem.platform);
+            const plugin = this.pluginManagerService.getMediaSourcePlugin(
+                musicItem.platform,
+            );
             // 5.2 获取音质排序
             const qualityOrder = getQualityOrder(
                 this.configService.getConfig("basic.defaultPlayQuality") ?? "standard",

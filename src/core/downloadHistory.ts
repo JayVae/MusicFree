@@ -41,7 +41,7 @@ function saveDownloadHistory(records: IDownloadRecord[]) {
     getDefaultStore().set(downloadHistoryAtom, nextRecords);
 }
 
-function getDownloadHistory() {
+export function getDownloadHistory() {
     return getDefaultStore().get(downloadHistoryAtom);
 }
 

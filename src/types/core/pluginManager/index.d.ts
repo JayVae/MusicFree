@@ -145,6 +145,12 @@ export interface IPluginManager {
     getByName(name: string): Plugin | undefined;
 
     /**
+     * 解析歌曲 platform 对应的取源插件。
+     * 原插件不可用时，会使用 R11 配置的旧音源替换目标。
+     */
+    getMediaSourcePlugin(platform: string): Plugin | undefined;
+
+    /**
      * 通过哈希值获取插件
      * @param hash - 要查找的插件哈希值
      * @returns 匹配哈希的插件实例或本地文件插件

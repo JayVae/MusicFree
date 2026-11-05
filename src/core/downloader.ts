@@ -141,7 +141,9 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
             musicItem,
             quality: task?.quality,
             filename: task?.filename,
-            pluginName: this.pluginManagerService.getByName(musicItem.platform)?.name,
+            pluginName: this.pluginManagerService.getMediaSourcePlugin(
+                musicItem.platform,
+            )?.name,
             createdAt,
         });
         this.downloadingCount++;
@@ -254,7 +256,9 @@ class Downloader extends EventEmitter<IEvents> implements IInjectable {
         let url = musicItem.url;
         let headers = musicItem.headers;
 
-        const plugin = this.pluginManagerService.getByName(musicItem.platform);
+        const plugin = this.pluginManagerService.getMediaSourcePlugin(
+            musicItem.platform,
+        );
 
         try {
             if (plugin) {
