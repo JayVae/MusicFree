@@ -148,5 +148,5 @@ src/types/core/          核心服务与 i18n 的类型声明
 ## 当前状态
 
 - R1/R2、R3、R4、R5、R6、R7、R8、R9、R10、R11 均已验收通过。
-- `v0.6.5` 正在执行发布收尾；Release 由 GitHub Actions 构建。
+- `v0.6.5` 已发布，Release 包含 5 个 APK 与 `SHA256SUMS.txt`。
 - 后续新需求应继续遵守“一需求一分支、文档先行、真机验收、验收后发布”的流程。

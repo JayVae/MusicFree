@@ -443,7 +443,7 @@ git diff --check
 
 - 用户已完成 R11 旧音源替换及运行时 warning 的 Android 真机复验。
 - 将版本提升为 `0.6.5`，更新发布说明、README 与 `release/version.json`。
-- 按 D68 不额外构建本地 APK；发布构建交由 `v0.6.5` tag 触发的 GitHub Actions。
+- 按 D68 不额外构建本地 APK；`v0.6.5` tag 触发的 GitHub Actions 已成功发布 5 个 APK 与 `SHA256SUMS.txt`。
 - 按 D70，收尾阶段没有再次执行 Metro production bundle：最后一批功能代码完成后已通过生产打包，之后仅修改文档和发布元数据。
 
 ---
@@ -479,3 +479,4 @@ git diff --check
 | 2026-11-05 | R11 代码实现与静态验证、Metro 打包、Android debug 构建完成，待真机验收。 |
 | 2026-11-05 | 根据真机 `元力KW -> kuwo` 反馈修订为搜索后元数据迁移，新增同名源重匹配、歌单批量替换、来源组整组删除和 APK 构建约束。 |
 | 2026-11-05 | R11 及运行时 warning 真机验收通过，开始 v0.6.5 收尾发布。 |
+| 2026-11-05 | v0.6.5 已发布，GitHub Release 包含 5 个 APK 与 `SHA256SUMS.txt`。 |
