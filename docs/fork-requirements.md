@@ -1840,7 +1840,7 @@ src/pages/setting/settingTypes/pluginSetting/*
 ### 已确认口径
 
 1. 在插件管理中新增“旧音源替换”页面，按音源 `platform` 配置替换目标，例如 `A -> B`。
-2. 页面从当前歌单、播放历史、本地音乐和下载历史收集旧音源，并展示歌曲引用数量；没有现存引用但已有映射的记录仍可管理。
+2. 页面从当前歌单、当前播放队列、播放历史、本地音乐和下载历史收集旧音源，并展示歌曲引用数量；没有现存引用但已有映射的记录仍可管理。
 3. 替换只在原音源不可用时生效。不可用包括：插件未安装、已禁用、`quarantined`、`userInvalid`、`archived`、解析失败或不支持 `getMediaSource`。
 4. 原音源重新可用时优先使用原音源，替换关系保留但暂不生效；用户可清除或改选 B。
 5. B 必须是已启用、健康状态为 `available` 且实现 `getMediaSource` 的现有插件。替换只解析一跳，禁止递归链和循环。
@@ -1883,4 +1883,17 @@ src/pages/setting/settingTypes/pluginSetting/
 
 ### 验收记录
 
-待代码实现、静态验证和 Android 真机验收。
+#### 实现记录（2026-11-05）
+
+1. 新增 `src/core/pluginManager/sourceReplacement.ts`，持久化 `旧 platform -> 目标插件 name` 映射，并收集旧音源引用数量。
+2. 新增 `PluginManager.getMediaSourcePlugin`，由播放、下载、批量换源和播放失败候选统一调用。
+3. 目标插件必须已启用、健康状态为 `available`、未加载失败且实现 `getMediaSource`；原音源恢复可用时优先原音源。
+4. 新增插件维护入口和“旧音源替换”页面，支持查看引用数量、选择目标、修改和清除映射。
+5. 未改写歌曲 `platform` / `id`；映射使用独立 MMKV，未进入备份 / 恢复。
+6. 当前歌单、当前播放队列、播放历史、本地音乐和下载历史会参与旧音源引用统计。
+
+#### 验证记录（2026-11-05）
+
+1. `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest 与 `git diff --check` 通过。
+2. Metro Android production bundle 与 Android `assembleDebug` 通过。
+3. 待用户进行 Android 真机验收。

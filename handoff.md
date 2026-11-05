@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-11-05
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9、R10 与最终 Android 回归均已验收通过；v0.6.4 已发布。R11 旧音源替换开发中。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9、R10 与最终 Android 回归均已验收通过；v0.6.4 已发布。R11 旧音源替换已完成代码、静态验证和 Android debug 构建，待真机验收。
 
 ## 1. 分支
 
@@ -226,14 +226,21 @@ R9 Android 真机已由用户构建验收通过。
 2. 原音源未安装、禁用、临时不可用、手动失效、归档、解析失败或不支持取源时，才使用 B。
 3. 原音源恢复可用后优先使用原音源；用户可清除或修改映射。
 4. 目标 B 必须已启用、健康可用且实现 `getMediaSource`；替换只解析一跳。
-5. 旧音源清单来自当前歌单、播放历史、本地音乐和下载历史，展示歌曲引用数量。
+5. 旧音源清单来自当前歌单、当前播放队列、播放历史、本地音乐和下载历史，展示歌曲引用数量。
 6. 播放、下载、批量换源和播放失败候选共用同一个原音源解析入口。
 7. 映射使用独立 MMKV，重启保留，不进入备份 / 恢复。
 
 实现记录：
 
-- 待补充。
+- `src/core/pluginManager/sourceReplacement.ts`：独立 `plugin.sourceReplacement` MMKV 映射表；收集当前歌单、当前播放队列、播放历史、本地音乐和下载历史中的旧音源引用。
+- `src/core/pluginManager/index.ts`：新增 `getMediaSourcePlugin`，原插件不可用时使用替换目标；目标不可用时不递归替换。
+- `src/core/trackPlayer/index.ts`、`downloader.ts`、`mediaSourceBatch.ts`、`mediaSourceResolver.ts`：统一接入取源插件解析。
+- `src/pages/setting/settingTypes/pluginSetting/views/pluginSourceReplacement.tsx`：插件维护页入口、旧音源列表、目标选择、修改与清除。
+- 未改写歌曲身份；替换关系不进入备份 / 恢复。
 
-验证记录：
+验证记录（2026-11-05）：
 
-- 待补充。
+- `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest 和 `git diff --check` 通过。
+- Metro Android production bundle 通过。
+- Android `assembleDebug` 构建成功。
+- 待用户 Android 真机验收；验收前不合并、不发布。
