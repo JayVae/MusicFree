@@ -1898,7 +1898,7 @@ src/pages/setting/settingTypes/pluginSetting/
 
 1. 真机反馈后的版本已通过 `tsc --noEmit`、改动文件 ESLint（0 errors / 5 个既有 warning）、Jest 和 `git diff --check`。
 2. Metro Android production bundle 通过；本轮无原生 / 构建配置改动，未重新构建 Debug APK。
-3. 待用户使用 Metro / 现有 Debug 包进行 Android 真机验收。
+3. 用户已使用现有 Debug 包 / Metro 完成 Android 真机验收，旧音源替换、同名源重匹配、歌单批量替换和来源组整组删除均通过。
 
 ---
 
@@ -1934,4 +1934,13 @@ R11 真机验证过程中观察到以下警告：
 3. Jest `--passWithNoTests --runInBand` 通过。
 4. `git diff --check` 通过。
 5. Metro Android production bundle 通过。
-6. 待用户使用现有 Debug 包 / Metro 复验三个运行时 warning 及对应交互。
+6. 用户已完成 Android 真机复验，三个运行时 warning 及对应交互均通过。
+
+---
+
+## 25. 持续验证策略（2026-11-05）
+
+1. Metro 生产打包默认不执行。
+2. 仅在改动入口 / 打包配置 / 依赖 / 公共模块、用户要求提测、发布前验证或怀疑生产模式问题时执行。
+3. 每次任务报告必须说明 Metro 生产打包是否执行、执行原因和结果。
+4. v0.6.5 收尾没有再次执行 Metro：最后一批功能代码完成后已完成生产打包，之后只修改文档和发布元数据。

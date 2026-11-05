@@ -77,7 +77,7 @@ src/
 | 8 | R9 插件勾选可用性测试 | `feat/0.6.2-plugin-availability-test` | 1,3,7 | ✅ |
 | 9 | 最终 Android 回归 | `feat/0.6.2-final-regression` | 2,3,4,5,6,7,8 | ✅ |
 | 10 | R10 订阅导入与安装流程优化 | `feat/0.6.3-subscription-install` | 3,8,9 | ✅ |
-| 11 | R11 旧音源替换 | `feat/0.6.5-source-replacement` | 2,3,7,10 | 📦 |
+| 11 | R11 旧音源替换 | `feat/0.6.5-source-replacement` | 2,3,7,10 | ✅ |
 
 **状态图例**：⏳ 待开始 / 🚧 进行中 / 📦 代码收尾待验收 / ✅ 完成 / ❌ 阻塞
 
@@ -378,7 +378,7 @@ git diff --check
 
 ---
 
-### 阶段 11：R11 旧音源替换  📦
+### 阶段 11：R11 旧音源替换  ✅
 
 **目标**：当歌单、播放历史、本地下载或下载历史中的歌曲仍引用已删除 / 失效的音源 A，或同名插件替换导致旧 ID 失效时，允许用户选择现有音源 B 搜索并验证歌曲，命中后把持久化歌曲元数据迁移为 B；未命中的歌曲保留原值，并在后续播放 / 下载搜索中优先尝试 B。
 
@@ -439,6 +439,13 @@ git diff --check
 - 本轮仍仅修改 JavaScript / TypeScript，不主动构建 Debug APK。
 - `tsc --noEmit`、Jest、`git diff --check` 和 Metro Android production bundle 通过；改动文件 ESLint 为 0 errors / 7 个既有 warning。
 
+**验收与发布（2026-11-05）**：
+
+- 用户已完成 R11 旧音源替换及运行时 warning 的 Android 真机复验。
+- 将版本提升为 `0.6.5`，更新发布说明、README 与 `release/version.json`。
+- 按 D68 不额外构建本地 APK；发布构建交由 `v0.6.5` tag 触发的 GitHub Actions。
+- 按 D70，收尾阶段没有再次执行 Metro production bundle：最后一批功能代码完成后已通过生产打包，之后仅修改文档和发布元数据。
+
 ---
 
 ## 变更日志
@@ -471,3 +478,4 @@ git diff --check
 | 2026-11-05 | 新增 R11 旧音源替换，创建 `feat/0.6.5-source-replacement` 分支；先补需求、决策和交接文档。 |
 | 2026-11-05 | R11 代码实现与静态验证、Metro 打包、Android debug 构建完成，待真机验收。 |
 | 2026-11-05 | 根据真机 `元力KW -> kuwo` 反馈修订为搜索后元数据迁移，新增同名源重匹配、歌单批量替换、来源组整组删除和 APK 构建约束。 |
+| 2026-11-05 | R11 及运行时 warning 真机验收通过，开始 v0.6.5 收尾发布。 |

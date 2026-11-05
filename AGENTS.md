@@ -4,7 +4,7 @@
 
 ## 项目概况
 
-- MusicFree 个人 fork，基于上游 `v0.6.2`，当前版本 `v0.6.4`。
+- MusicFree 个人 fork，基于上游 `v0.6.2`，当前版本 `v0.6.5`。
 - 技术栈：React Native `0.76.5`、React `18.3.1`、TypeScript、Jotai、MMKV。
 - 平台优先级：Android；iOS 不作为验收目标。
 - 仅维护个人 fork，不向上游仓库提 PR。
@@ -17,7 +17,7 @@
 | `handoff.md` | 当前状态、已验收需求、关键实现与发布记录 |
 | `docs/PLAN.md` | 阶段计划、分支、状态与变更日志 |
 | `docs/fork-requirements.md` | 需求口径、实现记录与验收标准 |
-| `docs/decisions.md` | 已确认决策 D1-D58，冲突时以此为准 |
+| `docs/decisions.md` | 已确认决策 D1-D70，冲突时以此为准 |
 
 ## 开发流程
 
@@ -64,6 +64,12 @@ node node_modules/react-native/cli.js bundle \
 - 普通 `src/` JavaScript / TypeScript 改动不主动构建 Debug APK，使用 Metro 热更新或用户现有 Debug 包验证。
 - 只有涉及 `android/`、`ios/`、`package.json` 中的原生库、`app.json` 或其他原生 / 构建配置时，才提醒用户构建 Debug APK。
 - 上述原生 / 配置变更默认由用户构建；代理不主动执行 Android debug / release 构建，除非用户明确要求。
+
+**Metro 生产打包约束**：
+
+- 默认不执行 Metro production bundle。
+- 仅在以下情况执行：改动入口 / 打包配置 / 依赖 / 公共模块；用户要求提测；发布前验证；怀疑生产模式问题。
+- 每次执行或跳过都应在最终报告中说明状态、原因和结果。
 
 ## 目录与职责
 
@@ -141,6 +147,6 @@ src/types/core/          核心服务与 i18n 的类型声明
 
 ## 当前状态
 
-- R1/R2、R3、R4、R5、R6、R7、R8、R9、R10 均已验收通过。
-- `v0.6.4` 已发布，Release 包含 5 个 APK 与 `SHA256SUMS.txt`。
+- R1/R2、R3、R4、R5、R6、R7、R8、R9、R10、R11 均已验收通过。
+- `v0.6.5` 正在执行发布收尾；Release 由 GitHub Actions 构建。
 - 后续新需求应继续遵守“一需求一分支、文档先行、真机验收、验收后发布”的流程。

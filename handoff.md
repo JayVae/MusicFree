@@ -1,7 +1,7 @@
 # MusicFree Fork Handoff
 
 更新时间：2026-11-05
-当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9、R10 与最终 Android 回归均已验收通过；v0.6.4 已发布。R11 旧音源替换已根据真机反馈修订为元数据迁移方案，待用户通过 Metro / Android 真机验收。
+当前状态：R1/R2、R3、R4、R5、R6、R7、R8、R9、R10、R11 与最终 Android 回归均已验收通过；正在执行 v0.6.5 收尾发布。
 
 ## 1. 分支
 
@@ -176,6 +176,7 @@ R9 Android 真机已由用户构建验收通过。
 - `lint-staged` 钩子可能在 commit 时自动 `git add .`，提交前需确认没有带入 `run.md` / `testresult.md`。
 - 仓库已提交 `.gitattributes` 统一文本换行规则；Windows 下仍需用 `git diff --cached --check` 复核提交内容。
 - 普通 `src/` JavaScript / TypeScript 改动不主动构建 Debug APK；只有涉及 `android/`、`ios/`、`package.json` 原生库、`app.json` 等原生 / 构建配置时，提醒用户自行构建。
+- Metro 生产打包默认不执行；仅在改动入口 / 打包配置 / 依赖 / 公共模块、用户要求提测、发布前验证或怀疑生产模式问题时执行，并在报告中说明是否执行、原因和结果。
 - 临时来源展示是纯会话态 atom；歌单偏好持久化但不进入备份；空结果抑制是内存态。
 - 插件来源关系持久化但不进入备份 / 恢复。
 - R9 可用性测试明细和汇总是会话态；双失败写入的 `quarantined` 继续按 R3 持久化。
@@ -215,7 +216,7 @@ R9 Android 真机已由用户构建验收通过。
 
 收尾（2026-10-31）：已合并到 `master`，版本提升为 `0.6.4`，打 tag `v0.6.4` 并推送远程，由 GitHub Actions 构建并发布 Release。
 
-## 10. R11 旧音源替换（2026-11-05，开发中）
+## 10. R11 旧音源替换（2026-11-05，已验收）
 
 分支：`feat/0.6.5-source-replacement`（基于 `master` / v0.6.4）。
 
@@ -252,3 +253,9 @@ R9 Android 真机已由用户构建验收通过。
 - 下载列表增加外层布局容器和 `estimatedItemSize`，不再给 FlashList 直接传 `style`。
 - 本轮仍仅涉及 JavaScript / TypeScript，不主动构建 Debug APK；等待用户在现有 Debug 包 / Metro 中复验。
 - `tsc --noEmit`、改动文件 ESLint（0 errors / 7 个既有 warning）、Jest、`git diff --check` 和 Metro Android production bundle 通过。
+
+验收记录（2026-11-05）：
+
+- 用户已完成 R11 旧音源替换、同名源重匹配、歌单批量替换、来源组整组删除及运行时 warning 的 Android 真机验收。
+- 版本提升为 `0.6.5`；发布由 `v0.6.5` tag 触发的 GitHub Actions 完成。
+- 收尾阶段未再次执行 Metro production bundle：最后一批功能代码完成后已通过生产打包，之后仅修改文档和发布元数据。
